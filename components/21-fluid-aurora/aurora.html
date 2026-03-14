@@ -58,7 +58,8 @@ renderer.setSize(W, H);
 container.appendChild(renderer.domElement);
 
 const scene  = new THREE.Scene();
-const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 10);
+camera.position.z = 1; // FIX: Prevents geometry clipping on z=0 plane
 
 // ── FLUID NOISE SHADER ───────────────────────────
 const fragmentShader = `
