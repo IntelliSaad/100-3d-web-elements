@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>3D Flip Auth Card</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: radial-gradient(ellipse at center top, #1a1035 0%, #0d0d12 70%);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Inter', sans-serif;
+      overflow: hidden;
+    }
+    .scene {
+      perspective: 1200px;
+      perspective-origin: center center;
+    }
+    .card-flipper {
+      width: 340px;
+      height: 400px;
+      position: relative;
+      transform-style: preserve-3d;
+      transition: transform 0.8s cubic-bezier(0.77, 0, 0.175, 1);
+      will-change: transform;
+    }
+    .card-flipper.flipped {
+      transform: rotateY(180deg);
+    }
+    .card-face {
+      position: absolute;
+      inset: 0;
+      border-radius: 20px;
+      backface-visibility: hidden;
+      -webkit-backface-visibility: hidden;
+      padding: 36px 32px;
+      display: flex;
+      flex-direction: column;
+    }
+    .face-login {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.1);
+      backdrop-filter: blur(20px);
+    }
+    .face-register {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.1);
+      backdrop-filter: blur(20px);
+      transform: rotateY(180deg);
+    }
+    .face-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      margin-bottom: 20px;
+    }
+    .icon-login { background: linear-gradient(135deg, #3b82f6, #8b5cf6); }
+    .icon-register { background: linear-gradient(135deg, #10b981, #06b6d4); }
+    .face-title {
+      font-size: 22px;
+      font-weight: 700;
+      color: white;
+      margin-bottom: 4px;
+      letter-spacing: -0.5px;
+    }
+    .face-sub {
+      font-size: 13px;
+      color: rgba(255,255,255,0.35);
+      margin-bottom: 28px;
+    }
+    .input-group {
+      margin-bottom: 14px;
+    }
+    .input-label {
+      display: block;
+      font-size: 11px;
+      font-weight: 500;
+      color: rgba(255,255,255,0.4);
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      margin-bottom: 7px;
+    }
+    .input-field {
+      width: 100%;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 10px;
+      padding: 11px 14px;
+      font-size: 13px;
+      color: white;
+      font-family: 'Inter', sans-serif;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+      outline: none;
+    }
+    .input-field:focus {
+      border-color: rgba(139, 92, 246, 0.5);
+      box-shadow: 0 0 0 3px rgba(139,92,246,0.1);
+    }
+    .face-register .input-field:focus {
+      border-color: rgba(16, 185, 129, 0.5);
+      box-shadow: 0 0 0 3px rgba(16,185,129,0.1);
+    }
+    .input-field::placeholder { color: rgba(255,255,255,0.2); }
+    .btn-primary {
+      width: 100%;
+      padding: 13px;
+      border-radius: 12px;
+      border: none;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 6px;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+      letter-spacing: 0.3px;
+    }
+    .btn-primary:active { transform: scale(0.97); }
+    .btn-login {
+      background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+      color: white;
+      box-shadow: 0 8px 20px rgba(139,92,246,0.35);
+    }
+    .btn-login:hover { box-shadow: 0 12px 28px rgba(139,92,246,0.55); }
+    .btn-register {
+      background: linear-gradient(135deg, #10b981, #06b6d4);
+      color: white;
+      box-shadow: 0 8px 20px rgba(16,185,129,0.35);
+    }
+    .btn-register:hover { box-shadow: 0 12px 28px rgba(16,185,129,0.55); }
+    .flip-link {
+      text-align: center;
+      margin-top: auto;
+      padding-top: 20px;
+      font-size: 12px;
+      color: rgba(255,255,255,0.25);
+    }
+    .flip-link button {
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 600;
+      font-family: 'Inter', sans-serif;
+      transition: color 0.2s ease;
+    }
+    .flip-link button.btn-link-login { color: #8b5cf6; }
+    .flip-link button.btn-link-login:hover { color: #a78bfa; }
+    .flip-link button.btn-link-register { color: #10b981; }
+    .flip-link button.btn-link-register:hover { color: #34d399; }
+    .bg-orbs {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: -1;
+      overflow: hidden;
+    }
+    .orb {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(60px);
+      opacity: 0.12;
+    }
+    .orb1 { width: 300px; height: 300px; background: #8b5cf6; top: -50px; left: -80px; animation: orbFloat1 8s ease-in-out infinite; }
+    .orb2 { width: 250px; height: 250px; background: #3b82f6; bottom: -40px; right: -60px; animation: orbFloat2 10s ease-in-out infinite; }
+    .orb3 { width: 200px; height: 200px; background: #10b981; bottom: 40px; left: 20px; animation: orbFloat1 12s ease-in-out infinite reverse; }
+    @keyframes orbFloat1 { 0%,100%{transform:translate(0,0)} 50%{transform:translate(20px,-20px)} }
+    @keyframes orbFloat2 { 0%,100%{transform:translate(0,0)} 50%{transform:translate(-20px,15px)} }
+    .divider { display:flex; align-items:center; gap:10px; margin:14px 0 6px; }
+    .divider::before,.divider::after { content:''; flex:1; height:1px; background:rgba(255,255,255,0.08); }
+    .divider span { font-size:10px; color:rgba(255,255,255,0.2); letter-spacing:1px; }
+    ::-webkit-input-placeholder { color: rgba(255,255,255,0.2); }
+  </style>
+</head>
+<body>
+
+<div class="bg-orbs">
+  <div class="orb orb1"></div>
+  <div class="orb orb2"></div>
+  <div class="orb orb3"></div>
+</div>
+
+<div class="scene">
+  <div class="card-flipper" id="flipper">
+
+    <!-- FRONT: LOGIN -->
+    <div class="card-face face-login">
+      <div class="face-icon icon-login">🔐</div>
+      <h2 class="face-title">Welcome back</h2>
+      <p class="face-sub">Sign in to your account</p>
+
+      <div class="input-group">
+        <label class="input-label">Email</label>
+        <input class="input-field" type="email" placeholder="you@example.com"/>
+      </div>
+      <div class="input-group">
+        <label class="input-label">Password</label>
+        <input class="input-field" type="password" placeholder="••••••••"/>
+      </div>
+
+      <button class="btn-primary btn-login">Sign In</button>
+
+      <div class="flip-link">
+        No account?
+        <button class="btn-link-login" id="toRegister">Create one →</button>
+      </div>
+    </div>
+
+    <!-- BACK: REGISTER -->
+    <div class="card-face face-register">
+      <div class="face-icon icon-register">✨</div>
+      <h2 class="face-title">Create account</h2>
+      <p class="face-sub">Join us today</p>
+
+      <div class="input-group">
+        <label class="input-label">Full Name</label>
+        <input class="input-field" type="text" placeholder="John Doe"/>
+      </div>
+      <div class="input-group">
+        <label class="input-label">Email</label>
+        <input class="input-field" type="email" placeholder="you@example.com"/>
+      </div>
+      <div class="input-group">
+        <label class="input-label">Password</label>
+        <input class="input-field" type="password" placeholder="Min. 8 characters"/>
+      </div>
+
+      <button class="btn-primary btn-register">Create Account</button>
+
+      <div class="flip-link">
+        Have an account?
+        <button class="btn-link-register" id="toLogin">Sign in →</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  const flipper = document.getElementById('flipper');
+  let isFlipped = false;
+
+  document.getElementById('toRegister').addEventListener('click', () => {
+    isFlipped = true;
+    flipper.classList.add('flipped');
+  });
+
+  document.getElementById('toLogin').addEventListener('click', () => {
+    isFlipped = false;
+    flipper.classList.remove('flipped');
+  });
+</script>
+</body>
+</html>

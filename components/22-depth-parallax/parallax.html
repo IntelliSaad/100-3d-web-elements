@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Depth-Mapped 3D Parallax</title>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body {
+      background:#08080c;
+      width:100%; height:100vh;
+      display:flex; flex-direction:column;
+      align-items:center; justify-content:center;
+      overflow:hidden; font-family:'Courier New',monospace;
+    }
+    .frame {
+      position:relative;
+      border-radius:12px; overflow:hidden;
+      box-shadow: 0 40px 80px rgba(0,0,0,0.9), 0 0 0 1px rgba(255,255,255,0.06);
+    }
+    #canvas-container { width:400px; height:300px; cursor:none; }
+    canvas { display:block; }
+
+    .label {
+      position:absolute; bottom:0; left:0; right:0;
+      padding:16px 18px 14px;
+      background:linear-gradient(transparent, rgba(0,0,0,0.9));
+      display:flex; justify-content:space-between; align-items:flex-end;
+      pointer-events:none;
+    }
+    .label-title { font-size:15px; font-weight:700; color:white; }
+    .label-sub   { font-size:9px; color:rgba(255,255,255,0.35); letter-spacing:2px; text-transform:uppercase; margin-top:3px; }
+    .label-badge { font-size:9px; color:rgba(99,179,237,0.7); letter-spacing:2px; text-transform:uppercase; }
+
+    .depth-indicator {
+      position:absolute; top:12px; right:12px;
+      font-size:8px; letter-spacing:2px; color:rgba(255,255,255,0.25);
+      text-transform:uppercase; background:rgba(0,0,0,0.4);
+      padding:4px 8px; border-radius:4px; backdrop-filter:blur(4px);
+      pointer-events:none;
+    }
+    .hint { margin-top:14px; font-size:10px; letter-spacing:3px; color:rgba(255,255,255,0.15); text-transform:uppercase; }
+  </style>
+</head>
+<body>
+
+<div class="frame">
+  <div id="canvas-container"></div>
+  <div class="label">
+    <div>
+      <div class="label-title">Depth Parallax</div>
+      <div class="label-sub">Fragment Shader · GPU-only · 60fps</div>
+    </div>
+    <div class="label-badge">GLSL</div>
+  </div>
+  <div class="depth-indicator" id="depthInfo">depth · active</div>
+</div>
+<p class="hint">‹ move cursor for 3D parallax ›</p>
+
+<script type="importmap">
+{ "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+
+const container = document.getElementById('canvas-container');
+const W = container.clientWidth;
+const H = container.clientHeight;
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+renderer.setSize(W, H);
+container.appendChild(renderer.domElement);
+
+const scene  = new THREE.Scene();
+const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+
+// ── VERTEX SHADER ────────────────────────────────
+const vertexShader = `
+  varying vec2 vUv;
+  void main() {
+    vUv = uv;
+    gl_Position = vec4(position, 1.0);
+  }
+`;
+
+// ── FRAGMENT SHADER: depth-driven parallax ───────
+const fragmentShader = `
+  uniform sampler2D uImage;
+  uniform sampler2D uDepth;
+  uniform vec2      uMouse;    // -1..1 normalised
+  uniform float     uStrength; // parallax magnitude
+  uniform float     uTime;
+  varying vec2      vUv;
+
+  void main() {
+    // Sample depth map — red channel = depth (white near, black far)
+    float depth = texture2D(uDepth, vUv).r;
+
+    // Parallax offset: pixels closer (brighter in depth map) shift more
+    vec2 offset = uMouse * depth * uStrength;
+
+    // Slight idle breathe when mouse is still
+    float breathe = sin(uTime * 0.9) * 0.004 * (1.0 - depth);
+    offset += vec2(breathe, breathe * 0.6);
+
+    // Displace UV by offset
+    vec2 dispUv = vUv + offset;
+
+    // Edge softening (prevent texture fetch outside 0-1)
+    dispUv = clamp(dispUv, 0.002, 0.998);
+
+    // Chromatic aberration scales with depth displacement length
+    float aberr = length(offset) * 1.8;
+    float r = texture2D(uImage, dispUv + vec2( aberr, 0.0)).r;
+    float g = texture2D(uImage, dispUv).g;
+    float b = texture2D(uImage, dispUv - vec2( aberr, 0.0)).b;
+
+    // Vignette
+    vec2 uv2 = vUv - 0.5;
+    float vignette = 1.0 - dot(uv2, uv2) * 1.2;
+
+    gl_FragColor = vec4(vec3(r,g,b) * vignette, 1.0);
+  }
+`;
+
+// ── PROCEDURAL DEPTH MAP ─────────────────────────
+// Build on a canvas: centre bright (close), edges dark, with subject shapes
+function makeDepthTexture(w, h) {
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  const ctx = c.getContext('2d');
+
+  // Base: radial falloff (center = near = white)
+  const grad = ctx.createRadialGradient(w*0.5, h*0.45, 0, w*0.5, h*0.45, Math.max(w,h)*0.65);
+  grad.addColorStop(0.0, '#ffffff');
+  grad.addColorStop(0.5, '#888888');
+  grad.addColorStop(1.0, '#111111');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, w, h);
+
+  // Subject on left side: mountains (far = darker)
+  ctx.fillStyle = '#404040';
+  ctx.beginPath();
+  ctx.moveTo(0, h*0.7);
+  ctx.lineTo(w*0.28, h*0.25);
+  ctx.lineTo(w*0.5, h*0.55);
+  ctx.lineTo(w*0.7, h*0.18);
+  ctx.lineTo(w, h*0.5);
+  ctx.lineTo(w, h);
+  ctx.lineTo(0, h);
+  ctx.closePath();
+  ctx.fill();
+
+  // Snow peaks (very close = white)
+  ctx.fillStyle = '#d0d0d0';
+  ctx.beginPath();
+  ctx.moveTo(w*0.26, h*0.28);
+  ctx.lineTo(w*0.28, h*0.25);
+  ctx.lineTo(w*0.30, h*0.28);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.fillStyle = '#cccccc';
+  ctx.beginPath();
+  ctx.moveTo(w*0.68, h*0.20);
+  ctx.lineTo(w*0.70, h*0.18);
+  ctx.lineTo(w*0.72, h*0.20);
+  ctx.closePath();
+  ctx.fill();
+
+  // Foreground strip (closest = brightest)
+  const fgGrad = ctx.createLinearGradient(0, h*0.75, 0, h);
+  fgGrad.addColorStop(0, 'rgba(255,255,255,0)');
+  fgGrad.addColorStop(1, 'rgba(255,255,255,0.6)');
+  ctx.fillStyle = fgGrad;
+  ctx.fillRect(0, h*0.75, w, h*0.25);
+
+  // Blur slightly to smooth transitions
+  // (canvas doesn't natively blur; skip for perf)
+
+  const tex = new THREE.CanvasTexture(c);
+  tex.minFilter = THREE.LinearFilter;
+  return tex;
+}
+
+// ── TEXTURES ─────────────────────────────────────
+const loader = new THREE.TextureLoader();
+
+const imgTexture = loader.load(
+  'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=800&h=600&fit=crop&q=90&auto=format',
+  () => { needsRender = true; }
+);
+imgTexture.minFilter = THREE.LinearFilter;
+
+const depthTexture = makeDepthTexture(400, 300);
+
+const uniforms = {
+  uImage:    { value: imgTexture },
+  uDepth:    { value: depthTexture },
+  uMouse:    { value: new THREE.Vector2(0, 0) },
+  uStrength: { value: 0.035 },
+  uTime:     { value: 0 },
+};
+
+const mat = new THREE.ShaderMaterial({ vertexShader, fragmentShader, uniforms });
+scene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat));
+
+// ── MOUSE TRACKING ───────────────────────────────
+let targetMX = 0, targetMY = 0;
+let curMX = 0, curMY = 0;
+let needsRender = true;
+
+container.addEventListener('mousemove', (e) => {
+  const rect = container.getBoundingClientRect();
+  targetMX = ((e.clientX - rect.left) / rect.width)  * 2 - 1;
+  targetMY = -((e.clientY - rect.top)  / rect.height) * 2 + 1;
+  needsRender = true;
+});
+container.addEventListener('mouseleave', () => {
+  targetMX = 0; targetMY = 0;
+  needsRender = true;
+});
+
+function lerp(a, b, t) { return a + (b - a) * t; }
+const clock = new THREE.Clock();
+
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = clock.getDelta();
+  uniforms.uTime.value += dt;
+
+  curMX = lerp(curMX, targetMX, 0.07);
+  curMY = lerp(curMY, targetMY, 0.07);
+  uniforms.uMouse.value.set(curMX, curMY);
+
+  const moving = Math.abs(curMX - targetMX) > 0.001 || Math.abs(curMY - targetMY) > 0.001;
+  if (needsRender || moving) {
+    renderer.render(scene, camera);
+    needsRender = moving;
+  }
+}
+animate();
+</script>
+</body>
+</html>

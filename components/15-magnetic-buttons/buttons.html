@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Magnetic 3D CTA Buttons</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: radial-gradient(ellipse at 50% 0%, #1a0a2e 0%, #0d0d12 60%);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Inter', sans-serif;
+      gap: 28px;
+      overflow: hidden;
+    }
+
+    .heading {
+      text-align: center;
+      margin-bottom: 10px;
+    }
+    .heading h2 {
+      font-size: 11px;
+      letter-spacing: 5px;
+      color: rgba(255,255,255,0.25);
+      text-transform: uppercase;
+    }
+
+    .magnetic-zone {
+      position: relative;
+      display: inline-flex;
+      padding: 24px;
+      cursor: none;
+    }
+
+    /* Custom magnetic cursor */
+    .custom-cursor {
+      position: fixed;
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: white;
+      pointer-events: none;
+      z-index: 9999;
+      transform: translate(-50%, -50%);
+      transition: transform 0.08s ease, width 0.2s ease, height 0.2s ease, background 0.2s ease;
+      mix-blend-mode: difference;
+    }
+
+    .magnetic-btn {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 16px 36px;
+      border-radius: 100px;
+      border: none;
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      cursor: none;
+      outline: none;
+      will-change: transform;
+      /* No CSS transition — JS handles animation via style directly */
+      transform-style: preserve-3d;
+      perspective: 600px;
+    }
+
+    .btn-primary-mag {
+      background: linear-gradient(135deg, #6366f1, #8b5cf6, #a855f7);
+      color: white;
+      box-shadow:
+        0 10px 30px rgba(139,92,246,0.35),
+        0 0 0 1px rgba(255,255,255,0.1) inset;
+    }
+
+    .btn-outline-mag {
+      background: transparent;
+      color: white;
+      border: 1px solid rgba(255,255,255,0.2);
+      box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+    }
+
+    .btn-neon-mag {
+      background: transparent;
+      color: #00ffaa;
+      border: 1px solid rgba(0,255,170,0.3);
+      box-shadow:
+        0 0 20px rgba(0,255,170,0.15),
+        inset 0 0 20px rgba(0,255,170,0.05);
+      font-family: 'Courier New', monospace;
+      letter-spacing: 2px;
+      font-size: 12px;
+    }
+
+    .btn-icon {
+      font-size: 16px;
+      line-height: 1;
+    }
+
+    .btn-text { position: relative; z-index: 1; }
+
+    /* Ripple layer */
+    .btn-ripple {
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      overflow: hidden;
+      pointer-events: none;
+    }
+
+    .ripple-circle {
+      position: absolute;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.25);
+      transform: scale(0);
+      animation: rippleAnim 0.6s ease-out forwards;
+    }
+
+    @keyframes rippleAnim {
+      to { transform: scale(4); opacity: 0; }
+    }
+
+    /* Glow layer */
+    .btn-glow {
+      position: absolute;
+      inset: -2px;
+      border-radius: inherit;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+      pointer-events: none;
+    }
+
+    .btn-primary-mag .btn-glow {
+      background: linear-gradient(135deg, #6366f1, #a855f7);
+      filter: blur(12px);
+    }
+
+    .btn-neon-mag .btn-glow {
+      background: #00ffaa;
+      filter: blur(14px);
+    }
+
+    .magnetic-btn:hover .btn-glow { opacity: 0.45; }
+
+    .row {
+      display: flex;
+      gap: 20px;
+      align-items: center;
+    }
+  </style>
+</head>
+<body>
+
+<div class="custom-cursor" id="cursor"></div>
+
+<div class="heading">
+  <h2>Magnetic 3D CTA Buttons</h2>
+</div>
+
+<div class="row">
+  <div class="magnetic-zone" data-strength="40">
+    <button class="magnetic-btn btn-primary-mag" id="btn1">
+      <div class="btn-glow"></div>
+      <div class="btn-ripple"></div>
+      <span class="btn-icon">→</span>
+      <span class="btn-text">Get Started</span>
+    </button>
+  </div>
+
+  <div class="magnetic-zone" data-strength="35">
+    <button class="magnetic-btn btn-outline-mag" id="btn2">
+      <div class="btn-glow"></div>
+      <div class="btn-ripple"></div>
+      <span class="btn-text">Learn More</span>
+    </button>
+  </div>
+</div>
+
+<div class="row">
+  <div class="magnetic-zone" data-strength="45">
+    <button class="magnetic-btn btn-neon-mag" id="btn3">
+      <div class="btn-glow"></div>
+      <div class="btn-ripple"></div>
+      <span class="btn-icon">⬡</span>
+      <span class="btn-text">ENTER.SYSTEM</span>
+    </button>
+  </div>
+</div>
+
+<script>
+  const cursor = document.getElementById('cursor');
+  const zones = document.querySelectorAll('.magnetic-zone');
+
+  // Track mouse globally
+  let mouseX = 0, mouseY = 0;
+  document.addEventListener('mousemove', (e) => {
+    mouseX = e.clientX;
+    mouseY = e.clientY;
+    cursor.style.left = mouseX + 'px';
+    cursor.style.top = mouseY + 'px';
+  });
+
+  // Animation state per zone — using motion values to bypass React render cycle
+  const zoneStates = new Map();
+
+  zones.forEach((zone) => {
+    const btn = zone.querySelector('.magnetic-btn');
+    const strength = parseFloat(zone.dataset.strength) || 40;
+
+    const state = {
+      tx: 0, ty: 0, // current position
+      rx: 0, ry: 0, // current rotation
+      sx: 1,        // scale
+      targetTx: 0, targetTy: 0,
+      targetRx: 0, targetRy: 0,
+      targetSx: 1,
+      isInside: false,
+      rafId: null,
+    };
+
+    zoneStates.set(zone, state);
+
+    function lerp(a, b, t) { return a + (b - a) * t; }
+
+    function animateBtn() {
+      state.tx = lerp(state.tx, state.targetTx, 0.1);
+      state.ty = lerp(state.ty, state.targetTy, 0.1);
+      state.rx = lerp(state.rx, state.targetRx, 0.1);
+      state.ry = lerp(state.ry, state.targetRy, 0.1);
+      state.sx = lerp(state.sx, state.targetSx, 0.12);
+
+      btn.style.transform = `
+        translate(${state.tx}px, ${state.ty}px)
+        rotateX(${state.rx}deg)
+        rotateY(${state.ry}deg)
+        scale(${state.sx})
+      `;
+
+      const stillMoving =
+        Math.abs(state.tx - state.targetTx) > 0.1 ||
+        Math.abs(state.ty - state.targetTy) > 0.1 ||
+        Math.abs(state.rx - state.targetRx) > 0.05 ||
+        Math.abs(state.ry - state.targetRy) > 0.05 ||
+        Math.abs(state.sx - state.targetSx) > 0.001;
+
+      if (stillMoving) {
+        state.rafId = requestAnimationFrame(animateBtn);
+      } else {
+        state.rafId = null;
+      }
+    }
+
+    function startAnim() {
+      if (!state.rafId) {
+        state.rafId = requestAnimationFrame(animateBtn);
+      }
+    }
+
+    zone.addEventListener('mousemove', (e) => {
+      const rect = btn.getBoundingClientRect();
+      const cx = rect.left + rect.width / 2;
+      const cy = rect.top + rect.height / 2;
+      const dx = e.clientX - cx;
+      const dy = e.clientY - cy;
+
+      // Magnetic pull — translate toward cursor
+      state.targetTx = dx * (strength / rect.width) * 1.8;
+      state.targetTy = dy * (strength / rect.height) * 1.8;
+
+      // 3D tilt based on position
+      const normX = dx / (rect.width / 2);
+      const normY = dy / (rect.height / 2);
+      state.targetRx = -normY * 12;
+      state.targetRy = normX * 12;
+
+      state.targetSx = 1.06;
+      state.isInside = true;
+      startAnim();
+    });
+
+    zone.addEventListener('mouseleave', () => {
+      state.targetTx = 0;
+      state.targetTy = 0;
+      state.targetRx = 0;
+      state.targetRy = 0;
+      state.targetSx = 1.0;
+      state.isInside = false;
+      startAnim();
+    });
+
+    // Click: scale down + ripple
+    btn.addEventListener('mousedown', (e) => {
+      state.targetSx = 0.95;
+      startAnim();
+
+      // Ripple effect
+      const rippleContainer = btn.querySelector('.btn-ripple');
+      const rect = btn.getBoundingClientRect();
+      const ripple = document.createElement('div');
+      ripple.className = 'ripple-circle';
+      const size = Math.max(rect.width, rect.height);
+      ripple.style.width = ripple.style.height = size + 'px';
+      ripple.style.left = (e.clientX - rect.left - size/2) + 'px';
+      ripple.style.top = (e.clientY - rect.top - size/2) + 'px';
+      rippleContainer.appendChild(ripple);
+      setTimeout(() => ripple.remove(), 700);
+    });
+
+    btn.addEventListener('mouseup', () => {
+      state.targetSx = state.isInside ? 1.06 : 1.0;
+      startAnim();
+    });
+  });
+</script>
+</body>
+</html>

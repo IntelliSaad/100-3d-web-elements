@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Cyber-Node Interactive Globe</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #000;
+      width: 100%; height: 100vh;
+      overflow: hidden;
+      font-family: 'Courier New', monospace;
+      position: relative;
+    }
+    #canvas-container {
+      position: absolute;
+      inset: 0;
+    }
+    .hud {
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      padding: 20px 24px;
+      z-index: 10;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      pointer-events: none;
+    }
+    .hud-left .title {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 4px;
+      color: #00ffcc;
+      text-transform: uppercase;
+      text-shadow: 0 0 10px #00ffcc;
+    }
+    .hud-left .sub {
+      font-size: 9px;
+      letter-spacing: 2px;
+      color: rgba(0,255,204,0.4);
+      margin-top: 4px;
+    }
+    .hud-right {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      align-items: flex-end;
+    }
+    .stat {
+      display: flex;
+      gap: 10px;
+      font-size: 9px;
+    }
+    .stat-label { color: rgba(0,255,204,0.35); letter-spacing: 2px; }
+    .stat-value { color: #00ffcc; text-shadow: 0 0 6px #00ffcc; font-weight: bold; }
+    .scan-line {
+      position: absolute;
+      left: 0; right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(0,255,204,0.15), transparent);
+      animation: scanMove 4s linear infinite;
+      z-index: 5;
+    }
+    @keyframes scanMove {
+      0% { top: 0%; opacity: 1; }
+      80% { opacity: 0.6; }
+      100% { top: 100%; opacity: 0; }
+    }
+    .corner {
+      position: absolute;
+      width: 16px; height: 16px;
+      border-color: rgba(0,255,204,0.4);
+      border-style: solid;
+      z-index: 10;
+    }
+    .corner.tl { top: 14px; left: 14px; border-width: 1px 0 0 1px; }
+    .corner.tr { top: 14px; right: 14px; border-width: 1px 1px 0 0; }
+    .corner.bl { bottom: 14px; left: 14px; border-width: 0 0 1px 1px; }
+    .corner.br { bottom: 14px; right: 14px; border-width: 0 1px 1px 0; }
+    .hint {
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 9px;
+      letter-spacing: 3px;
+      color: rgba(0,255,204,0.3);
+      text-transform: uppercase;
+      animation: pulse 2s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 0.3; }
+      50% { opacity: 0.7; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="scan-line"></div>
+
+<div class="corner tl"></div>
+<div class="corner tr"></div>
+<div class="corner bl"></div>
+<div class="corner br"></div>
+
+<div class="hud">
+  <div class="hud-left">
+    <div class="title">DataMesh · Global</div>
+    <div class="sub">Real-Time Node Visualization</div>
+  </div>
+  <div class="hud-right">
+    <div class="stat">
+      <span class="stat-label">NODES</span>
+      <span class="stat-value">2,048</span>
+    </div>
+    <div class="stat">
+      <span class="stat-label">ACTIVE</span>
+      <span class="stat-value">1,893</span>
+    </div>
+    <div class="stat">
+      <span class="stat-label">LATENCY</span>
+      <span class="stat-value">14ms</span>
+    </div>
+  </div>
+</div>
+
+<div id="canvas-container"></div>
+
+<div class="hint">drag to rotate · scroll to zoom</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+const container = document.getElementById('canvas-container');
+const W = container.clientWidth, H = container.clientHeight;
+
+// Renderer — demand rendering
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+renderer.setSize(W, H);
+renderer.setClearColor(0x000000, 1);
+container.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(50, W / H, 0.1, 100);
+camera.position.z = 3.5;
+
+// OrbitControls — triggers re-render on interaction
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.06;
+controls.rotateSpeed = 0.5;
+controls.enableZoom = true;
+controls.minDistance = 2;
+controls.maxDistance = 6;
+controls.autoRotate = true;
+controls.autoRotateSpeed = 0.4;
+
+let needsRender = true;
+controls.addEventListener('change', () => { needsRender = true; });
+controls.addEventListener('start', () => { needsRender = true; });
+
+// --- Globe points using SphereGeometry ---
+const GLOBE_RADIUS = 1.4;
+const sphereGeo = new THREE.SphereGeometry(GLOBE_RADIUS, 64, 48);
+const positions = sphereGeo.attributes.position;
+
+// Point material — glowing neon cyan
+const pointMat = new THREE.PointsMaterial({
+  color: 0x00ffcc,
+  size: 0.018,
+  sizeAttenuation: true,
+  transparent: true,
+  opacity: 0.85,
+});
+
+const globe = new THREE.Points(sphereGeo, pointMat);
+scene.add(globe);
+
+// Inner glow sphere (additive blending for glow effect)
+const innerGeo = new THREE.SphereGeometry(GLOBE_RADIUS * 0.98, 32, 24);
+const innerMat = new THREE.MeshBasicMaterial({
+  color: 0x00ffcc,
+  transparent: true,
+  opacity: 0.012,
+  side: THREE.FrontSide,
+  blending: THREE.AdditiveBlending,
+  depthWrite: false,
+});
+scene.add(new THREE.Mesh(innerGeo, innerMat));
+
+// Active data nodes — random bright points on sphere surface
+const nodeCount = 80;
+const nodePositions = new Float32Array(nodeCount * 3);
+for (let i = 0; i < nodeCount; i++) {
+  // Random point on sphere
+  const phi = Math.acos(2 * Math.random() - 1);
+  const theta = Math.random() * Math.PI * 2;
+  nodePositions[i*3]   = GLOBE_RADIUS * Math.sin(phi) * Math.cos(theta);
+  nodePositions[i*3+1] = GLOBE_RADIUS * Math.cos(phi);
+  nodePositions[i*3+2] = GLOBE_RADIUS * Math.sin(phi) * Math.sin(theta);
+}
+
+const nodeGeo = new THREE.BufferGeometry();
+nodeGeo.setAttribute('position', new THREE.BufferAttribute(nodePositions, 3));
+const nodeMat = new THREE.PointsMaterial({
+  color: 0xffffff,
+  size: 0.04,
+  transparent: true,
+  opacity: 0.9,
+  sizeAttenuation: true,
+  blending: THREE.AdditiveBlending,
+  depthWrite: false,
+});
+scene.add(new THREE.Points(nodeGeo, nodeMat));
+
+// Grid rings (latitude/longitude lines feel)
+for (let lat = -60; lat <= 60; lat += 30) {
+  const phi = THREE.MathUtils.degToRad(90 - lat);
+  const r = GLOBE_RADIUS * Math.sin(phi);
+  const y = GLOBE_RADIUS * Math.cos(phi);
+  const ringGeo = new THREE.RingGeometry(r - 0.001, r + 0.001, 64);
+  const ringMat = new THREE.MeshBasicMaterial({
+    color: 0x00ffcc,
+    transparent: true,
+    opacity: 0.06,
+    side: THREE.DoubleSide,
+    depthWrite: false,
+  });
+  const ring = new THREE.Mesh(ringGeo, ringMat);
+  ring.rotation.x = Math.PI / 2;
+  ring.position.y = y;
+  scene.add(ring);
+}
+
+// Equator ring bright
+const eqGeo = new THREE.RingGeometry(GLOBE_RADIUS - 0.002, GLOBE_RADIUS + 0.002, 128);
+const eqMat = new THREE.MeshBasicMaterial({ color: 0x00ffcc, transparent: true, opacity: 0.18, side: THREE.DoubleSide, depthWrite: false });
+const eqRing = new THREE.Mesh(eqGeo, eqMat);
+eqRing.rotation.x = Math.PI / 2;
+scene.add(eqRing);
+
+// Ambient glow (additive sprite-like)
+const ambGeo = new THREE.SphereGeometry(GLOBE_RADIUS * 1.25, 16, 12);
+const ambMat = new THREE.MeshBasicMaterial({
+  color: 0x00ffcc,
+  transparent: true,
+  opacity: 0.025,
+  side: THREE.BackSide,
+  blending: THREE.AdditiveBlending,
+  depthWrite: false,
+});
+scene.add(new THREE.Mesh(ambGeo, ambMat));
+
+// Clock for auto-render
+const clock = new THREE.Clock();
+let autoRotateTimer = 0;
+
+function render() {
+  renderer.render(scene, camera);
+  needsRender = false;
+}
+
+function animate() {
+  requestAnimationFrame(animate);
+  controls.update();
+
+  autoRotateTimer += clock.getDelta();
+
+  // Always render when auto-rotating
+  if (controls.autoRotate) {
+    needsRender = true;
+  }
+
+  if (needsRender) {
+    render();
+  }
+}
+
+animate();
+
+window.addEventListener('resize', () => {
+  const W2 = container.clientWidth, H2 = container.clientHeight;
+  camera.aspect = W2 / H2;
+  camera.updateProjectionMatrix();
+  renderer.setSize(W2, H2);
+  needsRender = true;
+});
+</script>
+</body>
+</html>

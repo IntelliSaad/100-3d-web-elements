@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>3D Origami Menu</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;900&display=swap');
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body {
+      background: #0c0c0e;
+      min-height: 100vh;
+      font-family: 'Inter', sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      color: white;
+    }
+
+    /* ── TRIGGER BUTTON ── */
+    .hamburger {
+      position: fixed;
+      top: 24px; left: 24px;
+      z-index: 100;
+      background: none; border: none;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      padding: 10px;
+    }
+    .bar {
+      display: block;
+      width: 28px; height: 2px;
+      background: white;
+      border-radius: 2px;
+      transition: transform 0.4s cubic-bezier(0.77,0,0.175,1),
+                  opacity 0.3s ease,
+                  width 0.3s ease;
+      transform-origin: left center;
+    }
+    .hamburger.open .bar:nth-child(1) { transform: rotate(38deg) scaleX(1.1); }
+    .hamburger.open .bar:nth-child(2) { opacity: 0; transform: scaleX(0); }
+    .hamburger.open .bar:nth-child(3) { transform: rotate(-38deg) scaleX(1.1); }
+
+    /* ── SIDEBAR 3D STAGE ── */
+    .sidebar-stage {
+      position: fixed;
+      top: 0; left: 0;
+      width: 320px; height: 100vh;
+      perspective: 1000px;
+      pointer-events: none;
+      z-index: 90;
+    }
+
+    /* ── ORIGAMI PANELS ── */
+    .panel {
+      position: absolute;
+      left: 0; right: 0;
+      background: #ffffff;
+      transform-origin: top center;
+      transform: rotateX(-90deg);
+      opacity: 0;
+      pointer-events: none;
+      overflow: hidden;
+      will-change: transform, opacity;
+      /* transition set dynamically via CSS custom props */
+      transition:
+        transform 0.55s cubic-bezier(0.22, 1, 0.36, 1),
+        opacity   0.4s ease;
+    }
+    /* backdrop panel (always visible partial black strip) */
+    .panel--visible {
+      transform: rotateX(0deg);
+      opacity: 1;
+      pointer-events: all;
+    }
+
+    /* Panel 0 — header strip */
+    .panel:nth-child(1) { top: 0; height: 80px; z-index:9; }
+    /* Panels 1–5 — nav items, stacked */
+    .panel:nth-child(2) { top: 80px;  height: 72px; z-index:8; transition-delay: 0.04s; }
+    .panel:nth-child(3) { top: 152px; height: 72px; z-index:7; transition-delay: 0.09s; }
+    .panel:nth-child(4) { top: 224px; height: 72px; z-index:6; transition-delay: 0.14s; }
+    .panel:nth-child(5) { top: 296px; height: 72px; z-index:5; transition-delay: 0.19s; }
+    .panel:nth-child(6) { top: 368px; height: 72px; z-index:4; transition-delay: 0.24s; }
+    /* Panel footer — social / cta */
+    .panel:nth-child(7) { top: 440px; height: 80px; z-index:3; transition-delay: 0.30s; }
+
+    /* When closing, reverse delays */
+    .sidebar-stage.closing .panel { transition-delay: 0s !important; }
+    .sidebar-stage.closing .panel:nth-child(2) { transition-delay: 0.02s !important; }
+    .sidebar-stage.closing .panel:nth-child(3) { transition-delay: 0.05s !important; }
+    .sidebar-stage.closing .panel:nth-child(4) { transition-delay: 0.08s !important; }
+    .sidebar-stage.closing .panel:nth-child(5) { transition-delay: 0.11s !important; }
+    .sidebar-stage.closing .panel:nth-child(6) { transition-delay: 0.14s !important; }
+    .sidebar-stage.closing .panel:nth-child(7) { transition-delay: 0.17s !important; }
+
+    /* ── FOLD SHADOW (bottom edge of each panel) */
+    .panel::after {
+      content: '';
+      position: absolute; bottom:0; left:0; right:0;
+      height: 12px;
+      background: linear-gradient(to bottom, transparent, rgba(0,0,0,0.12));
+      pointer-events: none;
+    }
+
+    /* ── PANEL INNER CONTENT ── */
+    .panel-header {
+      height: 100%; display: flex;
+      align-items: flex-end; padding: 14px 24px;
+      background: #111113;
+    }
+    .panel-logo {
+      font-size: 15px; font-weight: 900;
+      letter-spacing: -0.5px; color: white;
+    }
+    .panel-logo span { color: #6366f1; }
+
+    .panel-nav-item {
+      height: 100%;
+      display: flex; align-items: center;
+      padding: 0 24px;
+      cursor: pointer;
+      background: white;
+      position: relative;
+      transition: background 0.2s ease;
+      text-decoration: none;
+    }
+    .panel-nav-item:hover { background: #f5f5f7; }
+    .panel-nav-item:hover .nav-arrow { transform: translateX(4px); }
+
+    .nav-num {
+      font-size: 10px; font-weight: 600;
+      color: #c7c7cc; letter-spacing: 1px;
+      min-width: 24px;
+    }
+    .nav-label {
+      flex: 1;
+      font-size: 17px; font-weight: 700;
+      color: #1c1c1e; letter-spacing: -0.3px;
+      padding-left: 12px;
+    }
+    .nav-sub {
+      font-size: 10px;
+      color: #aaaaac; letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+    .nav-arrow {
+      font-size: 14px; color: #c7c7cc;
+      transition: transform 0.2s ease;
+    }
+
+    .panel-footer {
+      height: 100%;
+      display: flex; align-items: center;
+      padding: 0 24px; gap: 12px;
+      background: #f5f5f7;
+    }
+    .social-btn {
+      width: 36px; height: 36px;
+      border-radius: 50%;
+      background: #e5e5ea;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px; cursor: pointer;
+      transition: background 0.2s ease, transform 0.2s ease;
+      text-decoration: none; color: #1c1c1e;
+    }
+    .social-btn:hover { background: #d1d1d6; transform: scale(1.1); }
+    .footer-sep { flex: 1; }
+    .footer-cta {
+      font-size: 11px; font-weight: 600;
+      color: #6366f1; letter-spacing: 0.5px; cursor: pointer;
+    }
+
+    /* ── OVERLAY BACKDROP ── */
+    .backdrop {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0);
+      z-index: 80;
+      pointer-events: none;
+      transition: background 0.5s ease;
+    }
+    .backdrop.visible {
+      background: rgba(0,0,0,0.5);
+      pointer-events: all;
+    }
+
+    /* ── HERO CONTENT (behind menu) ── */
+    .hero {
+      text-align: center; padding: 40px;
+      position: relative; z-index: 1;
+    }
+    .hero-eyebrow {
+      font-size: 10px; letter-spacing: 4px;
+      color: rgba(255,255,255,0.2); text-transform: uppercase; margin-bottom: 16px;
+    }
+    .hero-title {
+      font-size: clamp(2.5rem, 6vw, 4rem);
+      font-weight: 900; letter-spacing: -2px;
+      color: white; line-height: 1.05; margin-bottom: 16px;
+    }
+    .hero-title em { color: #6366f1; font-style:normal; }
+    .hero-sub {
+      font-size: 14px; color: rgba(255,255,255,0.3); line-height: 1.7;
+      max-width: 380px; margin: 0 auto 30px;
+    }
+    .hero-hint {
+      font-size: 11px; letter-spacing: 2px; color: rgba(255,255,255,0.15);
+      text-transform: uppercase;
+      display: flex; align-items: center; gap: 8px; justify-content: center;
+    }
+    .hint-icon { font-size: 18px; opacity: 0.4; animation: pulse 2s ease-in-out infinite; }
+    @keyframes pulse { 0%,100%{opacity:.3} 50%{opacity:.7} }
+
+    /* ── ACTIVE NAV INDICATOR ── */
+    .panel-nav-item.active .nav-label { color: #6366f1; }
+    .panel-nav-item.active::before {
+      content:'';
+      position:absolute; left:0; top:0; bottom:0;
+      width:3px; background:#6366f1; border-radius:0 2px 2px 0;
+    }
+  </style>
+</head>
+<body>
+
+<!-- Hamburger trigger -->
+<button class="hamburger" id="hamburger" aria-label="Open menu">
+  <span class="bar"></span>
+  <span class="bar"></span>
+  <span class="bar"></span>
+</button>
+
+<!-- Backdrop -->
+<div class="backdrop" id="backdrop"></div>
+
+<!-- 3D Origami sidebar -->
+<div class="sidebar-stage" id="sidebarStage">
+
+  <!-- Panel 0: Header -->
+  <div class="panel">
+    <div class="panel-header">
+      <div class="panel-logo">Origami<span>.</span>UI</div>
+    </div>
+  </div>
+
+  <!-- Panels 1–5: Nav items -->
+  <div class="panel">
+    <a class="panel-nav-item active" href="#" onclick="setActive(this);return false;">
+      <span class="nav-num">01</span>
+      <span class="nav-label">Home</span>
+      <span class="nav-sub">Dashboard</span>
+      <span class="nav-arrow">→</span>
+    </a>
+  </div>
+
+  <div class="panel">
+    <a class="panel-nav-item" href="#" onclick="setActive(this);return false;">
+      <span class="nav-num">02</span>
+      <span class="nav-label">Work</span>
+      <span class="nav-sub">Portfolio</span>
+      <span class="nav-arrow">→</span>
+    </a>
+  </div>
+
+  <div class="panel">
+    <a class="panel-nav-item" href="#" onclick="setActive(this);return false;">
+      <span class="nav-num">03</span>
+      <span class="nav-label">Lab</span>
+      <span class="nav-sub">Experiments</span>
+      <span class="nav-arrow">→</span>
+    </a>
+  </div>
+
+  <div class="panel">
+    <a class="panel-nav-item" href="#" onclick="setActive(this);return false;">
+      <span class="nav-num">04</span>
+      <span class="nav-label">About</span>
+      <span class="nav-sub">Story</span>
+      <span class="nav-arrow">→</span>
+    </a>
+  </div>
+
+  <div class="panel">
+    <a class="panel-nav-item" href="#" onclick="setActive(this);return false;">
+      <span class="nav-num">05</span>
+      <span class="nav-label">Contact</span>
+      <span class="nav-sub">Get in touch</span>
+      <span class="nav-arrow">→</span>
+    </a>
+  </div>
+
+  <!-- Panel 6: Footer -->
+  <div class="panel">
+    <div class="panel-footer">
+      <a class="social-btn" href="#" title="X">𝕏</a>
+      <a class="social-btn" href="#" title="GitHub">⌥</a>
+      <a class="social-btn" href="#" title="Dribbble">◉</a>
+      <div class="footer-sep"></div>
+      <span class="footer-cta">Resume ↗</span>
+    </div>
+  </div>
+
+</div>
+
+<!-- Hero page content -->
+<div class="hero">
+  <div class="hero-eyebrow">CSS · DOM · Zero WebGL</div>
+  <h1 class="hero-title">Fold in<br/><em>3D Space</em></h1>
+  <p class="hero-sub">Pure CSS perspective + rotateX gives physical origami feel — 100% DOM-based, zero extra RAM.</p>
+  <div class="hero-hint">
+    <span class="hint-icon">☰</span> click the hamburger to unfold
+  </div>
+</div>
+
+<script>
+  const hamburger    = document.getElementById('hamburger');
+  const sidebarStage = document.getElementById('sidebarStage');
+  const backdrop     = document.getElementById('backdrop');
+  const panels       = sidebarStage.querySelectorAll('.panel');
+  let isOpen = false;
+
+  function openMenu() {
+    isOpen = true;
+    hamburger.classList.add('open');
+    backdrop.classList.add('visible');
+    sidebarStage.classList.remove('closing');
+    sidebarStage.style.pointerEvents = 'all';
+    panels.forEach(p => p.classList.add('panel--visible'));
+  }
+
+  function closeMenu() {
+    isOpen = false;
+    hamburger.classList.remove('open');
+    backdrop.classList.remove('visible');
+    sidebarStage.classList.add('closing');
+    sidebarStage.style.pointerEvents = 'none';
+    // reverse order: last panel closes first
+    const arr = Array.from(panels).reverse();
+    arr.forEach((p, i) => {
+      setTimeout(() => p.classList.remove('panel--visible'), i * 40);
+    });
+  }
+
+  hamburger.addEventListener('click', () => isOpen ? closeMenu() : openMenu());
+  backdrop.addEventListener('click', closeMenu);
+
+  function setActive(el) {
+    document.querySelectorAll('.panel-nav-item').forEach(n => n.classList.remove('active'));
+    el.classList.add('active');
+  }
+
+  // Keyboard
+  document.addEventListener('keydown', e => { if(e.key==='Escape' && isOpen) closeMenu(); });
+</script>
+</body>
+</html>

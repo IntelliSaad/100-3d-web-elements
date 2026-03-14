@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Kinetic 3D Spline Marquee</title>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body {
+      background: #08080f;
+      width:100%; height:100vh;
+      overflow:hidden; font-family:'Courier New',monospace;
+      display:flex; flex-direction:column;
+      align-items:center; justify-content:center;
+    }
+    #canvas-container { position:absolute; inset:0; }
+    canvas { display:block; }
+
+    .ui {
+      position:absolute; bottom:20px; left:50%; transform:translateX(-50%);
+      display:flex; gap:10px; z-index:10;
+    }
+    .ctrl {
+      padding:7px 18px;
+      border-radius:50px; border:1px solid rgba(255,255,255,0.12);
+      background:rgba(255,255,255,0.04);
+      color:rgba(255,255,255,0.4); font-size:10px;
+      letter-spacing:2px; cursor:pointer;
+      font-family:'Courier New',monospace; text-transform:uppercase;
+      transition:all 0.2s ease;
+    }
+    .ctrl:hover { background:rgba(255,255,255,0.1); color:white; }
+
+    .hud {
+      position:absolute; top:20px; left:50%; transform:translateX(-50%);
+      font-size:9px; letter-spacing:4px; color:rgba(255,255,255,0.15);
+      text-transform:uppercase; z-index:10; pointer-events:none;
+    }
+  </style>
+</head>
+<body>
+
+<div id="canvas-container"></div>
+<div class="hud">3D · Kinetic · Spline Marquee</div>
+
+<div class="ui">
+  <button class="ctrl" id="btnSlow">Slow</button>
+  <button class="ctrl" id="btnNormal">Normal</button>
+  <button class="ctrl" id="btnFast">Fast</button>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+
+const container = document.getElementById('canvas-container');
+const W = container.clientWidth || window.innerWidth;
+const H = container.clientHeight || window.innerHeight;
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+renderer.setSize(W, H);
+renderer.setClearColor(0x08080f);
+container.appendChild(renderer.domElement);
+
+const scene  = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(65, W / H, 0.1, 200);
+camera.position.set(0, 0, 10);
+camera.lookAt(0, 0, 0);
+
+// ── LIGHTING ──────────────────────────────────────
+scene.add(new THREE.AmbientLight(0xffffff, 0.8));
+const pl1 = new THREE.PointLight(0xa78bfa, 4, 20);
+pl1.position.set(3, 4, 5);
+scene.add(pl1);
+const pl2 = new THREE.PointLight(0x67e8f9, 3, 18);
+pl2.position.set(-4, -3, 4);
+scene.add(pl2);
+
+// ── BEZIER CURVE (the spline loop path) ──────────
+const curve = new THREE.CatmullRomCurve3([
+  new THREE.Vector3(-8,  0,  3),
+  new THREE.Vector3(-4,  2,  0),
+  new THREE.Vector3( 0,  0, -3),
+  new THREE.Vector3( 4, -2,  0),
+  new THREE.Vector3( 8,  0,  3),
+  new THREE.Vector3( 4,  2,  0),
+  new THREE.Vector3( 0,  0,  1),
+  new THREE.Vector3(-4, -2,  0),
+], true); // closed loop
+
+// Visualise the curve as a faint line
+const curvePoints = curve.getPoints(200);
+const curveLine = new THREE.Line(
+  new THREE.BufferGeometry().setFromPoints(curvePoints),
+  new THREE.LineBasicMaterial({ color: 0x1a1a2e, transparent: true, opacity: 0.3 })
+);
+scene.add(curveLine);
+
+// ── TEXT WORDS ───────────────────────────────────
+const WORDS = ['MOTION', '·', 'KINETIC', '·', 'BRUTAL', '·', 'FLOW', '·'];
+const WORD_SPACING = 1.1; // world units between words
+const TOTAL_WORDS  = WORDS.length;
+const REPEAT       = 3;   // repeat the loop 3× for seamless feel
+
+// Build text sprites using CanvasTexture (avoids font.json dependency)
+function makeTextMesh(text) {
+  const canvas = document.createElement('canvas');
+  const isAccent = text === '·';
+  canvas.width  = isAccent ? 64  : 256;
+  canvas.height = 80;
+  const ctx = canvas.getContext('2d');
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  if (isAccent) {
+    ctx.fillStyle = 'rgba(167,139,250,0.8)';
+    ctx.font = 'bold 48px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('·', canvas.width/2, canvas.height/2);
+  } else {
+    // Drop shadow
+    ctx.shadowColor = 'rgba(139,92,246,0.6)';
+    ctx.shadowBlur  = 16;
+    ctx.fillStyle   = '#ffffff';
+    ctx.font        = '900 52px Arial Black, Arial';
+    ctx.textAlign   = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, canvas.width/2, canvas.height/2);
+    ctx.shadowBlur = 0;
+  }
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.minFilter = THREE.LinearFilter;
+
+  const aspect = canvas.width / canvas.height;
+  const geo    = new THREE.PlaneGeometry(aspect * 1.0, 1.0);
+  const mat    = new THREE.MeshBasicMaterial({
+    map: tex, transparent: true,
+    depthWrite: false, side: THREE.DoubleSide,
+    blending: THREE.AdditiveBlending,
+  });
+  return new THREE.Mesh(geo, mat);
+}
+
+// Place words along the curve, repeated
+const wordMeshes = [];
+const TOTAL_INSTANCES = TOTAL_WORDS * REPEAT;
+
+for (let rep = 0; rep < REPEAT; rep++) {
+  for (let w = 0; w < TOTAL_WORDS; w++) {
+    const mesh = makeTextMesh(WORDS[w]);
+    scene.add(mesh);
+    wordMeshes.push({
+      mesh,
+      // t = position along curve 0..1
+      t: ((rep * TOTAL_WORDS + w) / TOTAL_INSTANCES),
+    });
+  }
+}
+
+// ── SPEED CONTROL ────────────────────────────────
+let speed = 0.00045;
+document.getElementById('btnSlow').addEventListener('click', () => speed = 0.00020);
+document.getElementById('btnNormal').addEventListener('click', () => speed = 0.00045);
+document.getElementById('btnFast').addEventListener('click', () => speed = 0.00110);
+
+// Scroll accelerates speed temporarily
+let scrollBurst = 0;
+window.addEventListener('wheel', (e) => { scrollBurst = 0.002; }, { passive: true });
+
+// ── ANIMATION ─────────────────────────────────────
+const clock    = new THREE.Clock();
+const up       = new THREE.Vector3(0, 1, 0);
+const tangent  = new THREE.Vector3();
+const normal   = new THREE.Vector3();
+const binormal = new THREE.Vector3();
+const quat     = new THREE.Quaternion();
+const lookMat  = new THREE.Matrix4();
+
+function animate() {
+  requestAnimationFrame(animate);
+  const t = clock.getElapsedTime();
+
+  // Decay scroll burst
+  scrollBurst *= 0.92;
+  const currentSpeed = speed + scrollBurst;
+
+  wordMeshes.forEach((item) => {
+    // Advance position
+    item.t = (item.t + currentSpeed) % 1.0;
+
+    // Position on curve
+    const pos = curve.getPoint(item.t);
+    item.mesh.position.copy(pos);
+
+    // Orient mesh to face along the curve tangent
+    curve.getTangent(item.t, tangent);
+    normal.crossVectors(up, tangent).normalize();
+    binormal.crossVectors(tangent, normal).normalize();
+    lookMat.makeBasis(normal, binormal, tangent);
+    quat.setFromRotationMatrix(lookMat);
+    item.mesh.quaternion.copy(quat);
+
+    // Scale & opacity: larger when close to camera (pos.z > 0)
+    const proximity = (pos.z + 3) / 6; // 0..1
+    const scale = 0.5 + proximity * 0.8;
+    item.mesh.scale.setScalar(scale);
+    item.mesh.material.opacity = 0.25 + proximity * 0.75;
+  });
+
+  // Gentle camera sway
+  camera.position.x = Math.sin(t * 0.1) * 0.5;
+  camera.position.y = Math.cos(t * 0.08) * 0.4;
+  camera.lookAt(0, 0, 0);
+
+  renderer.render(scene, camera);
+}
+
+animate();
+
+window.addEventListener('resize', () => {
+  const W2 = window.innerWidth, H2 = window.innerHeight;
+  camera.aspect = W2 / H2;
+  camera.updateProjectionMatrix();
+  renderer.setSize(W2, H2);
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Infinite Tunnel Scroll</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      background: #000;
+      font-family: 'Courier New', monospace;
+      overflow-x: hidden;
+    }
+    /* Scrollable content sections */
+    .scroll-wrapper {
+      height: 400vh;
+      position: relative;
+    }
+    .tunnel-sticky {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      width: 100%;
+      overflow: hidden;
+    }
+    #tunnel-canvas {
+      position: absolute;
+      inset: 0;
+    }
+    /* Overlay content */
+    .overlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 10;
+      pointer-events: none;
+    }
+    .overlay-tag {
+      font-size: 9px;
+      letter-spacing: 5px;
+      color: rgba(0,255,170,0.4);
+      text-transform: uppercase;
+      margin-bottom: 12px;
+    }
+    .overlay-title {
+      font-size: clamp(1.8rem, 5vw, 3rem);
+      font-weight: 900;
+      letter-spacing: -2px;
+      color: white;
+      text-shadow: 0 0 20px rgba(0,255,170,0.4), 0 0 60px rgba(0,255,170,0.1);
+      margin-bottom: 8px;
+      text-align: center;
+    }
+    .overlay-title .accent {
+      color: #00ffaa;
+      text-shadow: 0 0 20px rgba(0,255,170,0.8), 0 0 60px rgba(0,255,170,0.3);
+    }
+    .overlay-sub {
+      font-size: 11px;
+      letter-spacing: 3px;
+      color: rgba(255,255,255,0.25);
+      text-transform: uppercase;
+    }
+    .scroll-indicator {
+      position: absolute;
+      bottom: 30px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 9px;
+      letter-spacing: 3px;
+      color: rgba(0,255,170,0.35);
+      text-transform: uppercase;
+      animation: bounce 2s ease-in-out infinite;
+      pointer-events: none;
+    }
+    @keyframes bounce {
+      0%, 100% { transform: translateX(-50%) translateY(0); }
+      50% { transform: translateX(-50%) translateY(-8px); }
+    }
+    .vignette {
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse at center, transparent 30%, rgba(0,0,0,0.85) 100%);
+      pointer-events: none;
+      z-index: 5;
+    }
+    .scanline {
+      position: absolute;
+      inset: 0;
+      background-image: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        rgba(0,0,0,0.03) 2px,
+        rgba(0,0,0,0.03) 4px
+      );
+      pointer-events: none;
+      z-index: 6;
+    }
+  </style>
+</head>
+<body>
+
+<div class="scroll-wrapper">
+  <div class="tunnel-sticky">
+    <div id="tunnel-canvas"></div>
+
+    <div class="overlay">
+      <div class="overlay-tag">scroll to enter</div>
+      <h1 class="overlay-title">Into The <span class="accent">Void</span></h1>
+      <p class="overlay-sub">Retro-Wave Tunnel Experience</p>
+    </div>
+
+    <div class="vignette"></div>
+    <div class="scanline"></div>
+    <div class="scroll-indicator">↓ scroll ↓</div>
+  </div>
+
+  <!-- Content after tunnel -->
+  <div style="background:#000; display:flex; align-items:center; justify-content:center; height:100vh; padding:40px;">
+    <div style="text-align:center; max-width:500px;">
+      <div style="font-size:11px; letter-spacing:4px; color:rgba(0,255,170,0.5); text-transform:uppercase; margin-bottom:16px;">You made it through</div>
+      <h2 style="font-size:2.5rem; font-weight:800; color:white; letter-spacing:-1px; margin-bottom:12px;">Beyond the Horizon</h2>
+      <p style="font-size:14px; color:rgba(255,255,255,0.3); line-height:1.7;">The tunnel is behind you. The future is ahead. Built with a single static CylinderGeometry — infinite motion, near-zero GPU cost.</p>
+    </div>
+  </div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+
+const container = document.getElementById('tunnel-canvas');
+const W = container.clientWidth || window.innerWidth;
+const H = container.clientHeight || window.innerHeight;
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+renderer.setSize(W, H);
+renderer.setClearColor(0x000000);
+container.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(80, W / H, 0.1, 200);
+camera.position.z = 0;
+camera.lookAt(0, 0, -10);
+
+// Create neon grid texture programmatically
+function createGridTexture() {
+  const size = 512;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+
+  // Black background
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, size, size);
+
+  // Grid lines — neon green/cyan retrowave
+  ctx.strokeStyle = '#00ff88';
+  ctx.lineWidth = 1.5;
+  ctx.shadowColor = '#00ff88';
+  ctx.shadowBlur = 6;
+
+  const cols = 6, rows = 10;
+  // Vertical lines
+  for (let i = 0; i <= cols; i++) {
+    const x = (i / cols) * size;
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x, size);
+    ctx.stroke();
+  }
+  // Horizontal lines
+  for (let j = 0; j <= rows; j++) {
+    const y = (j / rows) * size;
+    // Vary intensity based on position
+    const intensity = 0.4 + Math.abs(j / rows - 0.5) * 0.6;
+    ctx.globalAlpha = intensity;
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(size, y);
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(3, 8);
+  return tex;
+}
+
+const gridTexture = createGridTexture();
+
+// Single static CylinderGeometry — the core optimization
+const cylGeo = new THREE.CylinderGeometry(4, 4, 60, 32, 1, true);
+
+// Render inside face
+const cylMat = new THREE.MeshBasicMaterial({
+  map: gridTexture,
+  side: THREE.BackSide, // render inside
+  color: 0x00ff88,
+  transparent: true,
+  opacity: 0.85,
+  blending: THREE.AdditiveBlending,
+  depthWrite: false,
+});
+
+const cylinder = new THREE.Mesh(cylGeo, cylMat);
+cylinder.rotation.x = Math.PI / 2; // align with camera Z axis
+scene.add(cylinder);
+
+// Second dim cylinder for depth
+const cylMat2 = new THREE.MeshBasicMaterial({
+  map: gridTexture,
+  side: THREE.BackSide,
+  color: 0x0040ff,
+  transparent: true,
+  opacity: 0.2,
+  blending: THREE.AdditiveBlending,
+  depthWrite: false,
+});
+gridTexture.repeat.set(3, 8);
+const cylinder2 = new THREE.Mesh(new THREE.CylinderGeometry(3.8, 3.8, 60, 32, 1, true), cylMat2);
+cylinder2.rotation.x = Math.PI / 2;
+scene.add(cylinder2);
+
+// Scroll → texture offset (the key optimization: no mesh movement needed)
+let scrollProgress = 0;
+let rafId;
+
+function getScrollProgress() {
+  const el = document.querySelector('.scroll-wrapper');
+  if (!el) return 0;
+  const maxScroll = el.offsetHeight - window.innerHeight;
+  return Math.min(Math.max(window.scrollY / maxScroll, 0), 1);
+}
+
+window.addEventListener('scroll', () => {
+  scrollProgress = getScrollProgress();
+}, { passive: true });
+
+const clock = new THREE.Clock();
+
+function animate() {
+  rafId = requestAnimationFrame(animate);
+  const t = clock.getElapsedTime();
+
+  // Map scroll to texture.offset.y — creates illusion of infinite movement
+  gridTexture.offset.y = scrollProgress * 4 + t * 0.02;
+
+  // Subtle camera sway
+  camera.position.x = Math.sin(t * 0.15) * 0.08;
+  camera.position.y = Math.cos(t * 0.1) * 0.06;
+
+  // FOV change with scroll for "acceleration" feel
+  camera.fov = 80 + scrollProgress * 25;
+  camera.updateProjectionMatrix();
+
+  // Slight rotation for psychedelic tunnel twist
+  cylinder.rotation.z = t * 0.04 + scrollProgress * 0.5;
+  cylinder2.rotation.z = -t * 0.03 + scrollProgress * 0.3;
+
+  renderer.render(scene, camera);
+}
+
+animate();
+
+window.addEventListener('resize', () => {
+  const W2 = window.innerWidth, H2 = window.innerHeight;
+  camera.aspect = W2 / H2;
+  camera.updateProjectionMatrix();
+  renderer.setSize(W2, H2);
+});
+</script>
+</body>
+</html>

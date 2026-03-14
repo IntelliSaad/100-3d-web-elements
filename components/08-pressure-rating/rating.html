@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Pressure Rating (Blue Stars)</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #f8fafc;
+            font-family: 'Segoe UI', sans-serif;
+        }
+
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+        }
+
+        .hint {
+            position: absolute;
+            bottom: 30px;
+            width: 100%;
+            text-align: center;
+            color: rgba(0, 0, 0, 0.4);
+            pointer-events: none;
+            user-select: none;
+            font-size: 14px;
+            letter-spacing: 1px;
+            font-weight: 600;
+        }
+
+        /* ── Ripple Burst on click ── */
+        .star-ripple {
+            position: fixed;
+            border-radius: 50%;
+            pointer-events: none;
+            transform: translate(-50%, -50%) scale(0);
+            animation: starRipple 0.65s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+            border: 3px solid rgba(59, 130, 246, 0.85);
+            box-shadow: 0 0 20px rgba(59, 130, 246, 0.6), inset 0 0 8px rgba(147, 197, 253, 0.4);
+        }
+
+        @keyframes starRipple {
+            0% {
+                width: 0px;
+                height: 0px;
+                opacity: 1;
+            }
+
+            60% {
+                opacity: 0.7;
+            }
+
+            100% {
+                width: 140px;
+                height: 140px;
+                opacity: 0;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div id="canvas-container"></div>
+    <div class="hint">HOVER to dent • CLICK to rate</div>
+
+    <!-- Three.js CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+    <script>
+        // --- 1. SETUP ---
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+        // Bright Background (Off-white/Blue-grey)
+        scene.background = new THREE.Color(0xf1f5f9);
+        scene.fog = new THREE.FogExp2(0xf1f5f9, 0.002);
+
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 0, 14);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap; // Soft shadows
+        container.appendChild(renderer.domElement);
+
+        // --- 2. LIGHTING (Bright & Clean) ---
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+        scene.add(ambientLight);
+
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.9);
+        dirLight.position.set(5, 12, 8);
+        dirLight.castShadow = true;
+        // Shadow optimization
+        dirLight.shadow.mapSize.width = 2048;
+        dirLight.shadow.mapSize.height = 2048;
+        dirLight.shadow.camera.near = 0.5;
+        dirLight.shadow.camera.far = 50;
+        dirLight.shadow.bias = -0.001;
+        scene.add(dirLight);
+
+        // Warm highlight interact light
+        const pointLight = new THREE.PointLight(0xffb700, 0.6, 20);
+        pointLight.position.set(-2, 2, 5);
+        scene.add(pointLight);
+
+        // --- 3. MATERIALS ---
+
+        // Ceramic Deep Blue Slab
+        const slabMaterial = new THREE.MeshPhysicalMaterial({
+            color: 0x1e3a8a, // Deep Royal Blue
+            metalness: 0.2,
+            roughness: 0.1,
+            clearcoat: 0.8,
+            clearcoatRoughness: 0.1,
+            reflectivity: 0.5
+        });
+
+        // Inactive Star: Matte Silver/Grey
+        const starEmptyMat = new THREE.MeshStandardMaterial({
+            color: 0xe2e8f0,
+            roughness: 0.4,
+            metalness: 0.2
+        });
+
+        // Active Star: Electric Blue
+        const starFilledMat = new THREE.MeshPhysicalMaterial({
+            color: 0x2563eb,
+            emissive: 0x3b82f6,
+            emissiveIntensity: 0.45,
+            metalness: 0.6,
+            roughness: 0.1,
+            clearcoat: 1.0
+        });
+
+        // --- 4. GEOMETRY ---
+
+        // SLAB (Box)
+        const slabGeom = new THREE.BoxGeometry(10, 2.5, 0.5);
+        // Add more segments to top face for vertex displacement (if we used shaders)
+        // But for this version we prioritize the "Real Stars" meshes
+        const slab = new THREE.Mesh(slabGeom, slabMaterial);
+        slab.receiveShadow = true;
+        slab.castShadow = true;
+        scene.add(slab);
+
+        // STAR SHAPE GENERATOR (Thick Extruded 3D)
+        function createStarShape(points, innerRadius, outerRadius) {
+            const shape = new THREE.Shape();
+            const angleStep = Math.PI / points;
+
+            for (let i = 0; i < 2 * points; i++) {
+                const r = (i % 2 === 0) ? outerRadius : innerRadius;
+                const a = i * angleStep;
+                // Rotate -90deg to point up
+                const x = Math.cos(a - Math.PI / 2) * r;
+                const y = Math.sin(a - Math.PI / 2) * r;
+                if (i === 0) shape.moveTo(x, y);
+                else shape.lineTo(x, y);
+            }
+            shape.closePath();
+            return shape;
+        }
+
+        const starShape = createStarShape(5, 0.35, 0.85); // 5 points, slightly chunky
+        const starGeom = new THREE.ExtrudeGeometry(starShape, {
+            depth: 0.3, // Thick 3D stars
+            bevelEnabled: true,
+            bevelThickness: 0.1,
+            bevelSize: 0.05,
+            bevelSegments: 4 // Smooth bevel
+        });
+
+        starGeom.center(); // Pivot at center
+
+        const stars = [];
+        const gap = 1.8;
+        const startX = -((gap * 4) / 2); // Center the group
+
+        for (let i = 0; i < 5; i++) {
+            const star = new THREE.Mesh(starGeom, starEmptyMat.clone());
+            star.position.set(startX + i * gap, 0, 0.35); // Sitting well ON TOP of slab
+            star.castShadow = true;
+            star.receiveShadow = true;
+
+            // Interaction Data
+            star.userData = { id: i + 1, isFilled: false };
+
+            scene.add(star);
+            stars.push(star);
+        }
+
+        // --- 5. INTERACTION ---
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+
+        let currentRating = 0;
+        let hoverRating = 0;
+
+        function updateRatingVisuals(rating) {
+            stars.forEach((star, index) => {
+                const isActive = (index < rating);
+
+                // Animate Material Swap
+                if (isActive) {
+                    star.material = starFilledMat;
+                    star.userData.targetScale = 1.15;
+                    star.userData.targetZ = 0.5; // Lift up when active
+                    star.userData.targetRot = Math.PI * 0.1;
+                } else {
+                    star.material = starEmptyMat;
+                    star.userData.targetScale = 1.0;
+                    star.userData.targetZ = 0.35; // Rest position
+                    star.userData.targetRot = 0;
+                }
+            });
+        }
+
+        function onMouseMove(event) {
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+            // Raycasting for Star Hover
+            raycaster.setFromCamera(mouse, camera);
+
+            // We interact with invisible plane for better hit area? 
+            // Or just stars + slab? Intersecting Slab gives us "Cursor on widget" context.
+            const intersects = raycaster.intersectObjects(stars);
+
+            if (intersects.length > 0) {
+                const hitStar = intersects[0].object;
+                hoverRating = hitStar.userData.id;
+                document.body.style.cursor = 'pointer';
+            } else {
+                // If interacting with SLAB, keep last hover? Or reset?
+                // For better UX, let's keep it 0 if not on stars directly
+                // Or find nearest star? Let's strictly highlight hovered star
+                hoverRating = 0;
+                document.body.style.cursor = 'default';
+            }
+
+            // Visual Update
+            const displayRating = hoverRating > 0 ? hoverRating : currentRating;
+            updateRatingVisuals(displayRating);
+
+            // Slab Tilt
+            const tiltX = mouse.y * 0.15;
+            const tiltY = mouse.x * 0.15;
+            targetSlabRot.set(tiltX, tiltY);
+        }
+
+        function spawnRipple(x, y) {
+            const el = document.createElement('div');
+            el.className = 'star-ripple';
+            el.style.left = x + 'px';
+            el.style.top = y + 'px';
+            document.body.appendChild(el);
+            el.addEventListener('animationend', () => el.remove());
+        }
+
+        function onClick(event) {
+            if (hoverRating > 0) {
+                currentRating = hoverRating;
+
+                // 3D instant-scale punch
+                const star = stars[hoverRating - 1];
+                star.scale.setScalar(1.5);
+
+                // Unique ripple-burst effect (CSS ring expanding outward)
+                spawnRipple(event.clientX, event.clientY);
+                // Secondary delayed ring
+                setTimeout(() => spawnRipple(event.clientX, event.clientY), 120);
+            }
+        }
+
+        window.addEventListener('mousemove', onMouseMove);
+        window.addEventListener('click', onClick);
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // --- 6. ANIMATION LOOP ---
+        const targetSlabRot = new THREE.Vector2();
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // Smooth Slab Tilt (Damped spring)
+            slab.rotation.x += (targetSlabRot.x - slab.rotation.x) * 0.08;
+            slab.rotation.y += (targetSlabRot.y - slab.rotation.y) * 0.08;
+
+            // Animate Stars
+            stars.forEach((star, i) => {
+                // Smooth Scale
+                const targetS = star.userData.targetScale || 1.0;
+                star.scale.lerp(new THREE.Vector3(targetS, targetS, targetS), 0.1);
+
+                // Smooth Z Position (Lift)
+                const targetZ = star.userData.targetZ || 0.35;
+                star.position.z += (targetZ - star.position.z) * 0.1;
+
+                // Smooth Rotation
+                const targetR = star.userData.targetRot || 0;
+                star.rotation.z += (targetR - star.rotation.z) * 0.08;
+
+                // Idle Float for filled stars
+                if (i < currentRating) {
+                    star.rotation.y = Math.sin(Date.now() * 0.002 + i) * 0.1;
+                }
+            });
+
+            renderer.render(scene, camera);
+        }
+
+        animate();
+    </script>
+</body>
+
+</html>

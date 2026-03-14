@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Spotlight Text Reveal</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;900&display=swap');
+    * { margin:0; padding:0; box-sizing:border-box; }
+
+    body {
+      background:#000;
+      width:100%; height:100vh;
+      display:flex; align-items:center; justify-content:center;
+      overflow:hidden; font-family:'Inter',sans-serif;
+    }
+
+    /* ── SPOTLIGHT CONTAINER ── */
+    .spotlight-section {
+      position:relative;
+      width:100%; height:100%;
+      display:flex; align-items:center; justify-content:center;
+      cursor:none;
+    }
+
+    /* ── HIDDEN TEXT LAYER (always rendered, masked) ── */
+    .text-layer {
+      position:absolute; inset:0;
+      display:flex; flex-direction:column;
+      align-items:center; justify-content:center;
+      padding:40px; text-align:center;
+      /* CSS mask: radial-gradient controlled by mouse */
+      -webkit-mask-image: radial-gradient(
+        circle var(--spot-size, 0px) at var(--spot-x, 50%) var(--spot-y, 50%),
+        black 0%,
+        black 60%,
+        transparent 100%
+      );
+      mask-image: radial-gradient(
+        circle var(--spot-size, 0px) at var(--spot-x, 50%) var(--spot-y, 50%),
+        black 0%,
+        black 60%,
+        transparent 100%
+      );
+      transition: --spot-size 0.1s ease;
+    }
+
+    .spot-eyebrow {
+      font-size:10px; letter-spacing:5px;
+      text-transform:uppercase; color:rgba(255,255,255,0.4);
+      margin-bottom:20px;
+    }
+
+    .spot-headline {
+      font-size:clamp(2.8rem, 7vw, 5rem);
+      font-weight:900; letter-spacing:-3px;
+      color:#ffffff; line-height:1.0;
+      margin-bottom:18px;
+    }
+
+    .spot-headline .line2 {
+      display:block;
+      background:linear-gradient(135deg, #a78bfa 0%, #f0abfc 50%, #67e8f9 100%);
+      -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+      background-clip:text;
+    }
+
+    .spot-sub {
+      font-size:14px; color:rgba(255,255,255,0.5);
+      line-height:1.7; max-width:380px; margin:0 auto 28px;
+    }
+
+    .spot-cta {
+      display:inline-flex; align-items:center; gap:10px;
+      padding:13px 30px; border-radius:50px;
+      border:1px solid rgba(255,255,255,0.15);
+      background:rgba(255,255,255,0.05);
+      color:rgba(255,255,255,0.7);
+      font-size:12px; letter-spacing:1px; text-transform:uppercase;
+      font-family:'Inter',sans-serif;
+      backdrop-filter:blur(10px);
+    }
+
+    /* ── OVERLAY DARKNESS (above text, below spotlight) ── */
+    .dark-overlay {
+      position:absolute; inset:0;
+      background:#000;
+      pointer-events:none;
+      /* Cut a spotlight hole using mask */
+      -webkit-mask-image: radial-gradient(
+        circle var(--spot-size, 0px) at var(--spot-x, 50%) var(--spot-y, 50%),
+        transparent 0%,
+        transparent 60%,
+        black 100%
+      );
+      mask-image: radial-gradient(
+        circle var(--spot-size, 0px) at var(--spot-x, 50%) var(--spot-y, 50%),
+        transparent 0%,
+        transparent 60%,
+        black 100%
+      );
+    }
+
+    /* ── SPOTLIGHT BEAM (volumetric cone effect) ── */
+    .beam {
+      position:absolute; inset:0;
+      pointer-events:none;
+      background: radial-gradient(
+        circle var(--spot-size, 0px) at var(--spot-x, 50%) var(--spot-y, 50%),
+        rgba(255,245,200,0.06) 0%,
+        rgba(255,240,180,0.03) 50%,
+        transparent 100%
+      );
+    }
+
+    /* ── FLOOR REFLECTION ── */
+    .floor-ref {
+      position:absolute; bottom:0; left:0; right:0; height:35%;
+      background:linear-gradient(to top, rgba(167,139,250,0.04) 0%, transparent 100%);
+      pointer-events:none;
+      -webkit-mask-image: radial-gradient(
+        ellipse 60% 80% at var(--spot-x, 50%) 100%,
+        black 0%, transparent 70%
+      );
+      mask-image: radial-gradient(
+        ellipse 60% 80% at var(--spot-x, 50%) 100%,
+        black 0%, transparent 70%
+      );
+    }
+
+    /* ── CUSTOM CURSOR ── */
+    .cursor-dot {
+      position:fixed; width:6px; height:6px;
+      border-radius:50%; background:rgba(255,245,200,0.6);
+      transform:translate(-50%,-50%);
+      pointer-events:none; z-index:1000;
+      mix-blend-mode:screen;
+    }
+
+    /* ── AMBIENT HINT PARTICLE ── */
+    .hint-text {
+      position:absolute; bottom:18px; left:50%; transform:translateX(-50%);
+      font-size:9px; letter-spacing:4px; color:rgba(255,255,255,0.1);
+      text-transform:uppercase; pointer-events:none;
+      animation:float 3s ease-in-out infinite;
+    }
+    @keyframes float { 0%,100%{opacity:.1;transform:translateX(-50%) translateY(0)} 50%{opacity:.25;transform:translateX(-50%) translateY(-4px)} }
+
+    /* ── ENTER HINT (before first move) ── */
+    .enter-hint {
+      position:absolute; inset:0;
+      display:flex; flex-direction:column; align-items:center; justify-content:center;
+      gap:10px;
+      transition:opacity 0.5s ease;
+      pointer-events:none;
+    }
+    .enter-hint .ring {
+      width:56px; height:56px; border-radius:50%;
+      border:1.5px solid rgba(255,255,255,0.12);
+      display:flex; align-items:center; justify-content:center;
+      animation:pulse 2.5s ease-in-out infinite;
+    }
+    .enter-hint .ring-inner {
+      width:10px; height:10px; border-radius:50%;
+      background:rgba(255,255,255,0.2);
+    }
+    .enter-hint p { font-size:9px; letter-spacing:4px; color:rgba(255,255,255,0.18); text-transform:uppercase; }
+    @keyframes pulse { 0%,100%{transform:scale(1);opacity:.4} 50%{transform:scale(1.12);opacity:.8} }
+    .enter-hint.hidden { opacity:0; }
+  </style>
+</head>
+<body>
+
+<div class="cursor-dot" id="cursorDot"></div>
+
+<div class="spotlight-section" id="section">
+
+  <!-- Enter hint -->
+  <div class="enter-hint" id="enterHint">
+    <div class="ring"><div class="ring-inner"></div></div>
+    <p>Move cursor to reveal</p>
+  </div>
+
+  <!-- Text revealed by spotlight -->
+  <div class="text-layer">
+    <div class="spot-eyebrow">CSS mask-image · zero GPU</div>
+    <h1 class="spot-headline">
+      In The<br/>
+      <span class="line2">Dark</span>
+    </h1>
+    <p class="spot-sub">
+      A volumetric spotlight tracks your cursor, revealing typography
+      hidden in perfect darkness — powered entirely by CSS variables and
+      <code>mask-image: radial-gradient()</code>.
+    </p>
+    <button class="spot-cta">Discover More →</button>
+  </div>
+
+  <!-- Darkness overlay with spotlight hole -->
+  <div class="dark-overlay" id="darkOverlay"></div>
+
+  <!-- Soft beam glow -->
+  <div class="beam" id="beam"></div>
+
+  <!-- Floor reflection -->
+  <div class="floor-ref" id="floorRef"></div>
+
+</div>
+
+<div class="hint-text">move cursor to cast light</div>
+
+<script>
+  const section    = document.getElementById('section');
+  const textLayer  = section.querySelector('.text-layer');
+  const dark       = document.getElementById('darkOverlay');
+  const beam       = document.getElementById('beam');
+  const floorRef   = document.getElementById('floorRef');
+  const cursorDot  = document.getElementById('cursorDot');
+  const enterHint  = document.getElementById('enterHint');
+
+  // CSS custom props on the section — both text-layer and dark-overlay read them
+  let spotX = 50, spotY = 50, spotSize = 0;
+  let targetX = 50, targetY = 50, targetSize = 0;
+  let hasEntered = false;
+
+  function lerp(a, b, t) { return a + (b - a) * t; }
+
+  section.addEventListener('mouseenter', () => {
+    targetSize = 160;
+    if (!hasEntered) {
+      hasEntered = true;
+      enterHint.classList.add('hidden');
+    }
+  });
+
+  section.addEventListener('mouseleave', () => {
+    targetSize = 0;
+  });
+
+  section.addEventListener('mousemove', (e) => {
+    const rect = section.getBoundingClientRect();
+    targetX = ((e.clientX - rect.left) / rect.width)  * 100;
+    targetY = ((e.clientY - rect.top)  / rect.height) * 100;
+    cursorDot.style.left = e.clientX + 'px';
+    cursorDot.style.top  = e.clientY + 'px';
+  });
+
+  function tick() {
+    requestAnimationFrame(tick);
+    spotX    = lerp(spotX,    targetX,    0.1);
+    spotY    = lerp(spotY,    targetY,    0.1);
+    spotSize = lerp(spotSize, targetSize, 0.07);
+
+    const v = `${spotX.toFixed(2)}% ${spotY.toFixed(2)}`;
+    const s = `${spotSize.toFixed(1)}px`;
+
+    // Update CSS variables on all masked elements individually
+    const maskReveal = `radial-gradient(circle ${s} at ${v}%, black 0%, black 60%, transparent 100%)`;
+    const maskHide   = `radial-gradient(circle ${s} at ${v}%, transparent 0%, transparent 60%, black 100%)`;
+    const maskBeam   = `radial-gradient(circle ${s} at ${v}%, rgba(255,245,200,0.06) 0%, rgba(255,240,180,0.03) 50%, transparent 100%)`;
+    const maskFloor  = `radial-gradient(ellipse 60% 80% at ${spotX.toFixed(1)}% 100%, black 0%, transparent 70%)`;
+
+    textLayer.style.webkitMaskImage = maskReveal;
+    textLayer.style.maskImage       = maskReveal;
+    dark.style.webkitMaskImage      = maskHide;
+    dark.style.maskImage            = maskHide;
+    beam.style.background           = maskBeam;
+    floorRef.style.webkitMaskImage  = maskFloor;
+    floorRef.style.maskImage        = maskFloor;
+  }
+
+  tick();
+</script>
+</body>
+</html>

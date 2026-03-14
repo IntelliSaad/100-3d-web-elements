@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Holographic Foil Ticket</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;900&display=swap');
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: radial-gradient(ellipse at center, #1a0a2e 0%, #0d0912 60%, #050308 100%);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Inter', sans-serif;
+      overflow: hidden;
+    }
+
+    /* ========== TICKET WRAPPER ========== */
+    .ticket-scene {
+      perspective: 900px;
+    }
+
+    .ticket-wrapper {
+      will-change: transform;
+      transform-style: preserve-3d;
+      transition: transform 0.1s ease;
+      cursor: none;
+    }
+
+    .ticket {
+      width: 360px;
+      background: #1a1025;
+      border-radius: 16px;
+      overflow: hidden;
+      position: relative;
+      box-shadow:
+        0 30px 70px rgba(0,0,0,0.8),
+        0 0 0 1px rgba(255,255,255,0.08);
+    }
+
+    /* ---- HOLOGRAPHIC FOIL LAYER ---- */
+    .holo-foil {
+      position: absolute;
+      inset: 0;
+      border-radius: 16px;
+      /* Full RGB spectrum gradient */
+      background: linear-gradient(
+        135deg,
+        hsl(0,80%,60%)   0%,
+        hsl(30,80%,60%)  8%,
+        hsl(60,80%,60%)  16%,
+        hsl(90,80%,60%)  24%,
+        hsl(120,80%,60%) 32%,
+        hsl(150,80%,60%) 40%,
+        hsl(180,80%,60%) 48%,
+        hsl(210,80%,60%) 56%,
+        hsl(240,80%,60%) 64%,
+        hsl(270,80%,60%) 72%,
+        hsl(300,80%,60%) 80%,
+        hsl(330,80%,60%) 88%,
+        hsl(360,80%,60%) 100%
+      );
+      background-size: 400% 400%;
+      mix-blend-mode: color-dodge;
+      opacity: 0;
+      pointer-events: none;
+      z-index: 20;
+      transition: opacity 0.3s ease;
+    }
+
+    .ticket:hover .holo-foil,
+    .ticket.is-hovering .holo-foil {
+      opacity: 0.35;
+    }
+
+    /* Sheen sweep layer */
+    .holo-sheen {
+      position: absolute;
+      inset: 0;
+      border-radius: 16px;
+      background: linear-gradient(
+        105deg,
+        transparent 30%,
+        rgba(255,255,255,0.08) 45%,
+        rgba(255,255,255,0.14) 50%,
+        rgba(255,255,255,0.08) 55%,
+        transparent 70%
+      );
+      background-size: 300% 100%;
+      mix-blend-mode: overlay;
+      pointer-events: none;
+      z-index: 21;
+    }
+
+    /* Sparkle dots */
+    .holo-sparkle {
+      position: absolute;
+      inset: 0;
+      border-radius: 16px;
+      background-image:
+        radial-gradient(circle, rgba(255,255,255,0.8) 1px, transparent 1px),
+        radial-gradient(circle, rgba(255,255,255,0.5) 1px, transparent 1px),
+        radial-gradient(circle, rgba(255,255,255,0.3) 1px, transparent 1px);
+      background-size: 40px 40px, 25px 25px, 55px 55px;
+      background-position: 5px 5px, 10px 15px, 20px 8px;
+      mix-blend-mode: screen;
+      opacity: 0;
+      pointer-events: none;
+      z-index: 22;
+      transition: opacity 0.3s ease;
+    }
+
+    .ticket:hover .holo-sparkle,
+    .ticket.is-hovering .holo-sparkle {
+      opacity: 0.15;
+    }
+
+    /* ---- TICKET CONTENT ---- */
+    .ticket-header {
+      padding: 24px 24px 0;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+    }
+
+    .event-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 12px;
+      border-radius: 50px;
+      background: rgba(139,92,246,0.15);
+      border: 1px solid rgba(139,92,246,0.3);
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: #a78bfa;
+    }
+
+    .ticket-qr {
+      width: 52px;
+      height: 52px;
+      border-radius: 8px;
+      background: white;
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      padding: 6px;
+      gap: 2px;
+    }
+
+    .qr-cell {
+      border-radius: 1px;
+      background: #111;
+    }
+
+    .ticket-event-name {
+      padding: 20px 24px 0;
+      font-size: 26px;
+      font-weight: 900;
+      color: white;
+      letter-spacing: -1px;
+      line-height: 1.1;
+    }
+
+    .ticket-event-name span {
+      background: linear-gradient(135deg, #a78bfa, #f0abfc);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .ticket-divider {
+      margin: 20px 24px;
+      display: flex;
+      align-items: center;
+      gap: 0;
+    }
+
+    .divider-notch-left {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: radial-gradient(ellipse at center, #1a0a2e 0%, #0d0912 100%);
+      margin-left: -9px;
+      flex-shrink: 0;
+    }
+
+    .divider-notch-right {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: radial-gradient(ellipse at center, #1a0a2e 0%, #0d0912 100%);
+      margin-right: -9px;
+      flex-shrink: 0;
+    }
+
+    .divider-line {
+      flex: 1;
+      height: 1px;
+      background: repeating-linear-gradient(
+        90deg,
+        rgba(255,255,255,0.1) 0px,
+        rgba(255,255,255,0.1) 6px,
+        transparent 6px,
+        transparent 12px
+      );
+    }
+
+    .ticket-details {
+      padding: 0 24px;
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+
+    .detail-item label {
+      display: block;
+      font-size: 9px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.3);
+      margin-bottom: 5px;
+    }
+
+    .detail-item span {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      color: rgba(255,255,255,0.85);
+    }
+
+    .ticket-footer {
+      background: rgba(255,255,255,0.03);
+      border-top: 1px solid rgba(255,255,255,0.05);
+      padding: 16px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .seat-info {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .seat-row {
+      font-size: 9px;
+      letter-spacing: 2px;
+      color: rgba(255,255,255,0.25);
+      text-transform: uppercase;
+    }
+
+    .seat-num {
+      font-size: 20px;
+      font-weight: 900;
+      color: white;
+      letter-spacing: -0.5px;
+    }
+
+    .barcode {
+      display: flex;
+      gap: 2px;
+      height: 36px;
+      align-items: center;
+    }
+
+    .bar {
+      width: 2px;
+      background: rgba(255,255,255,0.5);
+      border-radius: 1px;
+    }
+
+    /* Hint */
+    .hint {
+      margin-top: 20px;
+      font-size: 10px;
+      letter-spacing: 3px;
+      color: rgba(255,255,255,0.15);
+      text-transform: uppercase;
+    }
+  </style>
+</head>
+<body>
+
+<div class="ticket-scene">
+  <div class="ticket-wrapper" id="ticketWrapper">
+    <div class="ticket" id="ticket">
+
+      <!-- Holographic layers (CSS only, no WebGL) -->
+      <div class="holo-foil" id="holoFoil"></div>
+      <div class="holo-sheen" id="holoSheen"></div>
+      <div class="holo-sparkle"></div>
+
+      <!-- Content -->
+      <div class="ticket-header">
+        <div class="event-badge">✦ Live Event</div>
+        <div class="ticket-qr" id="qr"></div>
+      </div>
+
+      <div class="ticket-event-name">
+        Neon <span>Dreams</span><br/>Festival 2026
+      </div>
+
+      <div class="ticket-divider">
+        <div class="divider-notch-left"></div>
+        <div class="divider-line"></div>
+        <div class="divider-notch-right"></div>
+      </div>
+
+      <div class="ticket-details">
+        <div class="detail-item">
+          <label>Date</label>
+          <span>Apr 14, 2026</span>
+        </div>
+        <div class="detail-item">
+          <label>Time</label>
+          <span>8:00 PM</span>
+        </div>
+        <div class="detail-item">
+          <label>Venue</label>
+          <span>Skyline Arena</span>
+        </div>
+      </div>
+
+      <div class="ticket-footer">
+        <div class="seat-info">
+          <span class="seat-row">Section · Row · Seat</span>
+          <span class="seat-num">A · 12 · 07</span>
+        </div>
+        <div class="barcode" id="barcode"></div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<p class="hint">‹ Move cursor over ticket ›</p>
+
+<script>
+  // Build QR code visual
+  const qr = document.getElementById('qr');
+  const qrPattern = [
+    1,1,1,0,1, 1,0,1,0,1, 1,1,1,0,0, 0,1,0,1,0, 1,0,1,1,1,
+  ];
+  for (let i = 0; i < 25; i++) {
+    const cell = document.createElement('div');
+    cell.className = 'qr-cell';
+    cell.style.background = qrPattern[i % qrPattern.length] ? '#111' : 'transparent';
+    if (Math.random() > 0.45) cell.style.background = '#111';
+    qr.appendChild(cell);
+  }
+
+  // Build barcode visual
+  const barcode = document.getElementById('barcode');
+  const heights = [36,20,32,14,28,36,16,30,24,36,18,28,36,20,14,36,24,18,32,26,36];
+  heights.forEach(h => {
+    const bar = document.createElement('div');
+    bar.className = 'bar';
+    bar.style.height = h + 'px';
+    barcode.appendChild(bar);
+  });
+
+  // ---- HOLOGRAPHIC INTERACTION ----
+  const wrapper = document.getElementById('ticketWrapper');
+  const ticket  = document.getElementById('ticket');
+  const foil    = document.getElementById('holoFoil');
+  const sheen   = document.getElementById('holoSheen');
+
+  let currentX = 0, currentY = 0;
+  let targetX = 0, targetY = 0;
+  let targetBgX = 50, targetBgY = 50;
+  let currentBgX = 50, currentBgY = 50;
+  let isHovering = false;
+  let rafId;
+
+  function lerp(a, b, t) { return a + (b - a) * t; }
+
+  function animate() {
+    currentX  = lerp(currentX, targetX, 0.08);
+    currentY  = lerp(currentY, targetY, 0.08);
+    currentBgX= lerp(currentBgX, targetBgX, 0.06);
+    currentBgY= lerp(currentBgY, targetBgY, 0.06);
+
+    // 3D tilt via Framer Motion-style transform
+    wrapper.style.transform = `
+      rotateX(${currentY}deg)
+      rotateY(${currentX}deg)
+    `;
+
+    // Shift holographic gradient backgroundPosition (the iridescent sheen)
+    foil.style.backgroundPosition = `${currentBgX}% ${currentBgY}%`;
+    sheen.style.backgroundPosition = `${100 - currentBgX}% ${currentBgY}%`;
+
+    rafId = requestAnimationFrame(animate);
+  }
+
+  ticket.addEventListener('mousemove', (e) => {
+    const rect = ticket.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    const dx = e.clientX - cx;
+    const dy = e.clientY - cy;
+    const normX = dx / (rect.width / 2);  // -1 to 1
+    const normY = dy / (rect.height / 2); // -1 to 1
+
+    targetX =  normX * 15;  // max ±15deg
+    targetY = -normY * 12;  // max ±12deg
+
+    // Map mouse to gradient position (creates the shifting iridescence)
+    targetBgX = 50 + normX * 50;
+    targetBgY = 50 + normY * 50;
+
+    isHovering = true;
+    ticket.classList.add('is-hovering');
+  });
+
+  ticket.addEventListener('mouseleave', () => {
+    targetX = 0;
+    targetY = 0;
+    targetBgX = 50;
+    targetBgY = 50;
+    isHovering = false;
+    ticket.classList.remove('is-hovering');
+  });
+
+  animate();
+</script>
+</body>
+</html>

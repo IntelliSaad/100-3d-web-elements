@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Deformable Button</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #0a0a14 0%, #12121f 50%, #1a1a2e 100%);
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            gap: 40px;
+        }
+
+        .button-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 24px;
+        }
+
+        /* Button container for effects */
+        .button-container {
+            position: relative;
+        }
+
+        /* 3D BUTTON - Single Instance */
+        .button-3d {
+            position: relative;
+            padding: 20px 56px;
+            font-size: 18px;
+            font-weight: 700;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            color: #ffffff;
+            background: linear-gradient(180deg, #6366f1, #4f46e5);
+            border: none;
+            border-radius: 16px;
+            cursor: pointer;
+            overflow: hidden;
+
+            /* Base state */
+            transform: translateY(0) scale(1);
+            transition: all 0.2s cubic-bezier(0.34, 1.4, 0.64, 1);
+
+            /* Real thickness */
+            box-shadow:
+                0 6px 0 0 #3730a3,
+                0 8px 0 0 #312e81,
+                0 10px 0 0 #1e1b4b,
+                0 12px 20px rgba(0, 0, 0, 0.4),
+                0 20px 40px rgba(0, 0, 0, 0.2),
+                inset 0 1px 0 rgba(255, 255, 255, 0.2);
+        }
+
+        .button-3d:focus {
+            outline: none;
+        }
+
+        /* Hover - Lift + glow */
+        .button-3d:hover {
+            transform: translateY(-4px) scale(1.03);
+            box-shadow:
+                0 10px 0 0 #3730a3,
+                0 12px 0 0 #312e81,
+                0 14px 0 0 #1e1b4b,
+                0 18px 30px rgba(0, 0, 0, 0.45),
+                0 30px 50px rgba(0, 0, 0, 0.25),
+                0 0 50px rgba(99, 102, 241, 0.4),
+                inset 0 1px 0 rgba(255, 255, 255, 0.25);
+        }
+
+        /* Press - Deep compression */
+        .button-3d:active,
+        .button-3d.pressing {
+            transform: translateY(8px) scale(0.97);
+            transition: all 0.08s ease-out;
+
+            box-shadow:
+                0 2px 0 0 #3730a3,
+                0 3px 0 0 #312e81,
+                0 4px 0 0 #1e1b4b,
+                0 6px 12px rgba(0, 0, 0, 0.5),
+                inset 0 4px 10px rgba(0, 0, 0, 0.4);
+        }
+
+        /* Click burst animation */
+        .button-3d.clicked {
+            animation: clickBurst 0.4s ease-out;
+        }
+
+        @keyframes clickBurst {
+            0% {
+                transform: translateY(8px) scale(0.97);
+            }
+
+            30% {
+                transform: translateY(-6px) scale(1.05);
+            }
+
+            50% {
+                transform: translateY(-2px) scale(1.02);
+            }
+
+            70% {
+                transform: translateY(-4px) scale(1.03);
+            }
+
+            100% {
+                transform: translateY(0) scale(1);
+            }
+        }
+
+        /* Inner ripple */
+        .ripple {
+            position: absolute;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.4);
+            transform: scale(0);
+            animation: rippleExpand 0.6s ease-out forwards;
+            pointer-events: none;
+        }
+
+        @keyframes rippleExpand {
+            0% {
+                transform: scale(0);
+                opacity: 1;
+            }
+
+            100% {
+                transform: scale(4);
+                opacity: 0;
+            }
+        }
+
+        /* Outer ring pulse */
+        .pulse-ring {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 100%;
+            height: 100%;
+            border: 3px solid #818cf8;
+            border-radius: 20px;
+            transform: translate(-50%, -50%) scale(1);
+            opacity: 0;
+            pointer-events: none;
+            animation: ringExpand 0.6s ease-out forwards;
+        }
+
+        @keyframes ringExpand {
+            0% {
+                transform: translate(-50%, -50%) scale(1);
+                opacity: 0.8;
+            }
+
+            100% {
+                transform: translate(-50%, -50%) scale(1.4);
+                opacity: 0;
+            }
+        }
+
+        /* Shine effect */
+        .button-3d::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 60%;
+            height: 100%;
+            background: linear-gradient(90deg,
+                    transparent,
+                    rgba(255, 255, 255, 0.3),
+                    transparent);
+            transform: skewX(-20deg);
+            transition: left 0.5s ease;
+        }
+
+        .button-3d:hover::before {
+            left: 120%;
+        }
+
+        /* Particles */
+        .particle {
+            position: absolute;
+            width: 8px;
+            height: 8px;
+            background: #818cf8;
+            border-radius: 50%;
+            pointer-events: none;
+            animation: particleFly 0.8s ease-out forwards;
+        }
+
+        @keyframes particleFly {
+            0% {
+                transform: translate(0, 0) scale(1);
+                opacity: 1;
+            }
+
+            100% {
+                transform: translate(var(--tx), var(--ty)) scale(0);
+                opacity: 0;
+            }
+        }
+
+        /* Status */
+        .status {
+            font-size: 14px;
+            color: rgba(255, 255, 255, 0.4);
+            letter-spacing: 1px;
+            min-height: 24px;
+            transition: all 0.3s ease;
+        }
+
+        .status.clicked {
+            color: #4ade80;
+            transform: scale(1.1);
+        }
+
+        .hint {
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.25);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="button-wrapper">
+        <div class="button-container" id="container">
+            <!-- SINGLE INSTANCE - 3D Button -->
+            <button class="button-3d" id="button">
+                Click Me
+            </button>
+        </div>
+        <div class="status" id="status"></div>
+        <div class="hint">Hover and click to see animations</div>
+    </div>
+
+    <script>
+        const container = document.getElementById('container');
+        const button = document.getElementById('button');
+        const statusEl = document.getElementById('status');
+        let clickCount = 0;
+
+        // Exposed API
+        window.Button3D = {
+            click: () => handleClick(),
+            get clicks() { return clickCount; }
+        };
+
+        function createRipple(e) {
+            const ripple = document.createElement('span');
+            ripple.className = 'ripple';
+
+            const rect = button.getBoundingClientRect();
+            const size = Math.max(rect.width, rect.height);
+            const x = e.clientX - rect.left - size / 2;
+            const y = e.clientY - rect.top - size / 2;
+
+            ripple.style.width = ripple.style.height = size + 'px';
+            ripple.style.left = x + 'px';
+            ripple.style.top = y + 'px';
+
+            button.appendChild(ripple);
+            setTimeout(() => ripple.remove(), 600);
+        }
+
+        function createPulseRing() {
+            const ring = document.createElement('div');
+            ring.className = 'pulse-ring';
+            container.appendChild(ring);
+            setTimeout(() => ring.remove(), 600);
+        }
+
+        function createParticles() {
+            for (let i = 0; i < 8; i++) {
+                const particle = document.createElement('div');
+                particle.className = 'particle';
+
+                const angle = (i / 8) * Math.PI * 2;
+                const distance = 60 + Math.random() * 40;
+                const tx = Math.cos(angle) * distance;
+                const ty = Math.sin(angle) * distance;
+
+                particle.style.setProperty('--tx', tx + 'px');
+                particle.style.setProperty('--ty', ty + 'px');
+                particle.style.left = '50%';
+                particle.style.top = '50%';
+
+                container.appendChild(particle);
+                setTimeout(() => particle.remove(), 800);
+            }
+        }
+
+        function handleClick(e) {
+            clickCount++;
+
+            // Burst animation
+            button.classList.remove('clicked');
+            void button.offsetWidth;
+            button.classList.add('clicked');
+
+            // Effects
+            createPulseRing();
+            createParticles();
+
+            // Status
+            statusEl.textContent = `Clicked ${clickCount} time${clickCount !== 1 ? 's' : ''}`;
+            statusEl.classList.add('clicked');
+            setTimeout(() => statusEl.classList.remove('clicked'), 400);
+        }
+
+        // Click with ripple
+        button.addEventListener('click', (e) => {
+            createRipple(e);
+            handleClick(e);
+        });
+
+        // Remove animation class
+        button.addEventListener('animationend', () => {
+            button.classList.remove('clicked');
+        });
+
+        // Keyboard support
+        button.addEventListener('keydown', (e) => {
+            if ((e.key === ' ' || e.key === 'Enter') && !e.repeat) {
+                e.preventDefault();
+                button.classList.add('pressing');
+            }
+        });
+
+        button.addEventListener('keyup', (e) => {
+            if (e.key === ' ' || e.key === 'Enter') {
+                button.classList.remove('pressing');
+                handleClick();
+                createPulseRing();
+                createParticles();
+            }
+        });
+    </script>
+</body>
+
+</html>

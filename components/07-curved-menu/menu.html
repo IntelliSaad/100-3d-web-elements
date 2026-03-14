@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Curved Menu (Three.js)</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #0f172a;
+            font-family: 'Segoe UI', sans-serif;
+        }
+
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+        }
+
+        .instructions {
+            position: absolute;
+            top: 20px;
+            width: 100%;
+            text-align: center;
+            color: rgba(255, 255, 255, 0.5);
+            pointer-events: none;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="canvas-container"></div>
+    <div class="instructions">Scroll to Rotate • Hover to Expand</div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+    <script>
+        // --- 1. SETUP ---
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x0a0a14);
+
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+        camera.position.set(0, 0, 10);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        container.appendChild(renderer.domElement);
+
+        // --- 2. LIGHTING ---
+        const light = new THREE.PointLight(0xffffff, 1, 100);
+        light.position.set(0, 5, 5);
+        scene.add(light);
+        scene.add(new THREE.AmbientLight(0x404040, 2));
+
+        // --- 3. MENU GROUP ---
+        // We create a "Ring" of menu items
+        const menuGroup = new THREE.Group();
+        scene.add(menuGroup);
+
+        const items = [
+            { label: "Dashboard", color: 0x3b82f6 },
+            { label: "Projects", color: 0x8b5cf6 },
+            { label: "Messages", color: 0xec4899 },
+            { label: "Analytics", color: 0x10b981 },
+            { label: "Settings", color: 0xf59e0b }
+        ];
+
+        // Canvas Texture Helper
+        function createTextTexture(text, colorStr) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 512;
+            canvas.height = 128; // Wide aspect
+            const ctx = canvas.getContext('2d');
+
+            // Bg
+            // ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+            // ctx.fillRect(0,0, 512, 128);
+
+            // Border
+            ctx.strokeStyle = colorStr;
+            ctx.lineWidth = 10;
+            ctx.beginPath();
+            ctx.roundRect(10, 10, 492, 108, 40);
+            ctx.stroke();
+
+            // Text
+            ctx.fillStyle = 'white';
+            ctx.font = 'bold 60px Segoe UI';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(text, 256, 64);
+
+            return new THREE.CanvasTexture(canvas);
+        }
+
+        const radius = 4;
+        const itemMeshes = [];
+
+        items.forEach((item, index) => {
+            // Create Curved Plane Geometry
+            // Create Curved Plane Geometry
+            // cylinder segment
+            // radiusTop, radiusBottom, height, radialSegments, heightSegments, openEnded, thetaStart, thetaLength
+            const angleWidth = Math.PI / 4; // 45 degrees width
+
+            // Generate Mesh Geometry
+            // We do NOT rotate Y by PI anymore, so it starts at +Z (facing camera)
+            const geometry = new THREE.CylinderGeometry(radius, radius, 1.2, 32, 1, true, -angleWidth / 2, angleWidth);
+
+            // Text Texture
+            const texture = createTextTexture(item.label, '#' + item.color.toString(16));
+
+            const material = new THREE.MeshPhysicalMaterial({
+                map: texture,
+                color: 0xffffff,
+                transparent: true,
+                opacity: 0.95, // Improved opacity
+                side: THREE.DoubleSide,
+                roughness: 0.2,
+                metalness: 0.1,
+                clearcoat: 1.0,
+                clearcoatRoughness: 0.1
+            });
+
+            const mesh = new THREE.Mesh(geometry, material);
+
+            // Position in ring (Vertical Layout)
+            mesh.position.y = (2 - index) * 1.4;
+            // Reset rotation
+            mesh.rotation.y = 0;
+
+            // Metadata
+            mesh.userData = {
+                originalY: mesh.position.y,
+                hoverColor: item.color,
+                id: index
+            };
+
+            menuGroup.add(mesh);
+            itemMeshes.push(mesh);
+        });
+
+        // Tilt the whole menu to emphasize curve
+        menuGroup.rotation.x = 0;
+        menuGroup.position.z = -2;
+
+        // --- 4. INTERACTION ---
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+        let hoveredMesh = null;
+
+        function updateMouse(e) {
+            mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(itemMeshes);
+
+            if (intersects.length > 0) {
+                const hit = intersects[0].object;
+                if (hoveredMesh !== hit) {
+                    hoveredMesh = hit;
+                    document.body.style.cursor = 'pointer';
+                }
+            } else {
+                hoveredMesh = null;
+                document.body.style.cursor = 'default';
+            }
+        }
+
+        window.addEventListener('mousemove', updateMouse);
+
+        // Scroll Interaction (Rotate Menu)
+        let scrollY = 0;
+        window.addEventListener('wheel', (e) => {
+            scrollY += e.deltaY * 0.001;
+        });
+
+        // --- 5. ANIMATION ---
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // Smooth Scroll damping
+            menuGroup.rotation.y += (scrollY - menuGroup.rotation.y) * 0.1;
+            scrollY *= 0.95; // Decay scroll momentum back to 0 (optional) or just keep position
+            // Let's make it always return to center-ish if not scrolling?
+
+            // Animate Items
+            itemMeshes.forEach(mesh => {
+                const isHovered = (mesh === hoveredMesh);
+
+                // Target Scale/Pos
+                const targetScale = isHovered ? 1.1 : 1.0;
+                const targetZ = isHovered ? 0.5 : 0; // Pop out
+
+                mesh.scale.setScalar(THREE.MathUtils.lerp(mesh.scale.x, targetScale, 0.1));
+                mesh.position.z = THREE.MathUtils.lerp(mesh.position.z, targetZ, 0.1);
+
+                // Opacity boost
+                mesh.material.opacity = THREE.MathUtils.lerp(mesh.material.opacity, isHovered ? 1.0 : 0.6, 0.1);
+            });
+
+            // Subtle float
+            menuGroup.position.y = Math.sin(Date.now() * 0.001) * 0.2;
+
+            renderer.render(scene, camera);
+        }
+
+        animate();
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+    </script>
+</body>
+
+</html>
