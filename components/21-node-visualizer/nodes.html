@@ -3,311 +3,198 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Data Structure Node Visualizer</title>
+  <title>Fluid Aurora Background</title>
   <style>
     * { margin:0; padding:0; box-sizing:border-box; }
-    body { background:#020408; width:100%; height:100vh; overflow:hidden; font-family:'Courier New',monospace; }
-    #canvas-container { position:absolute; inset:0; }
-
-    .hud {
-      position:absolute; top:0; left:0; right:0;
-      padding:20px 24px;
-      display:flex; justify-content:space-between; align-items:flex-start;
-      z-index:10; pointer-events:none;
+    body {
+      background:#050508; width:100%; height:100vh;
+      overflow:hidden; display:flex; align-items:center; justify-content:center;
+      font-family:'Inter', sans-serif;
     }
-    .hud-left .title { font-size:11px; letter-spacing:4px; color:rgba(99,179,237,0.7); text-transform:uppercase; }
-    .hud-left .sub   { font-size:9px; letter-spacing:2px; color:rgba(99,179,237,0.3); margin-top:4px; }
-    .stats { display:flex; flex-direction:column; gap:3px; align-items:flex-end; }
-    .stat  { font-size:9px; letter-spacing:2px; color:rgba(99,179,237,0.35); }
-    .stat span { color:rgba(99,179,237,0.8); font-weight:bold; }
-
-    .legend {
-      position:absolute; bottom:20px; left:24px;
-      z-index:10; pointer-events:none;
-      display:flex; flex-direction:column; gap:6px;
-    }
-    .legend-row { display:flex; align-items:center; gap:8px; font-size:9px; letter-spacing:2px; color:rgba(255,255,255,0.25); }
-    .legend-dot { width:8px; height:8px; border-radius:50%; }
-
-    .hint {
-      position:absolute; bottom:20px; left:50%; transform:translateX(-50%);
-      font-size:9px; letter-spacing:3px; color:rgba(255,255,255,0.15);
-      text-transform:uppercase; z-index:10; pointer-events:none;
-    }
+    #canvas-container { position:absolute; inset:0; z-index:1; }
     canvas { display:block; }
+    
+    .overlay {
+      position:relative; z-index:10; pointer-events:none;
+      text-align:center;
+    }
+    .eyebrow { font-size:10px; letter-spacing:6px; color:rgba(255,255,255,0.4); text-transform:uppercase; margin-bottom:16px; }
+    h1 { font-size:clamp(3rem, 8vw, 6rem); font-weight:900; letter-spacing:-2px; color:#fff; line-height:1; margin-bottom:20px; }
+    p { font-size:15px; color:rgba(255,255,255,0.6); max-width:400px; margin:0 auto; line-height:1.6; }
+    
+    .cursor-hint {
+      position:absolute; bottom:24px; left:50%; transform:translateX(-50%);
+      font-size:9px; letter-spacing:3px; color:rgba(255,255,255,0.2); text-transform:uppercase; z-index:10; pointer-events:none;
+    }
   </style>
 </head>
 <body>
 
 <div id="canvas-container"></div>
 
-<div class="hud">
-  <div class="hud-left">
-    <div class="title">Graph · DSA Visualizer</div>
-    <div class="sub">Interactive Network · Three.js</div>
-  </div>
-  <div class="stats">
-    <div class="stat">NODES <span>32</span></div>
-    <div class="stat">EDGES <span>48</span></div>
-    <div class="stat" id="hoverStat">HOVER <span>—</span></div>
-  </div>
+<div class="overlay">
+  <div class="eyebrow">Interactive GLSL</div>
+  <h1>Aurora</h1>
+  <p>A procedural fluid nebula driven by gradient noise and fragment shaders.</p>
 </div>
-
-<div class="legend">
-  <div class="legend-row"><div class="legend-dot" style="background:#3b82f6"></div>Standard Node</div>
-  <div class="legend-row"><div class="legend-dot" style="background:#ffffff"></div>Active / Hover</div>
-  <div class="legend-row"><div class="legend-dot" style="background:#f59e0b"></div>Hub Node (high degree)</div>
-</div>
-
-<div class="hint">hover a node to highlight connections</div>
+<div class="cursor-hint">move cursor to swirl</div>
 
 <script type="importmap">
-{
-  "imports": {
-    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
-    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
-  }
-}
+{ "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
 </script>
 
 <script type="module">
 import * as THREE from 'three';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
 const container = document.getElementById('canvas-container');
 const W = container.clientWidth || window.innerWidth;
 const H = container.clientHeight || window.innerHeight;
 
-const renderer = new THREE.WebGLRenderer({ antialias: true });
+const renderer = new THREE.WebGLRenderer({ antialias: false });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
 renderer.setSize(W, H);
-renderer.setClearColor(0x020408);
 container.appendChild(renderer.domElement);
 
-const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(55, W / H, 0.1, 200);
-camera.position.set(0, 4, 16);
-camera.lookAt(0, 0, 0);
+const scene  = new THREE.Scene();
+const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
 
-const controls = new OrbitControls(camera, renderer.domElement);
-controls.enableDamping = true;
-controls.dampingFactor = 0.05;
-controls.autoRotate = true;
-controls.autoRotateSpeed = 0.5;
-controls.enableZoom = true;
+// ── FLUID NOISE SHADER ───────────────────────────
+const fragmentShader = `
+uniform float uTime;
+uniform vec2 uResolution;
+uniform vec2 uMouse;
 
-// ── GRAPH DATA ─────────────────────────────────
-const NODE_COUNT = 32;
-const EDGE_COUNT = 48;
-
-// Random positions on a sphere + interior
-const nodePositions = [];
-const nodeConnections = Array.from({ length: NODE_COUNT }, () => []);
-
-for (let i = 0; i < NODE_COUNT; i++) {
-  const phi   = Math.acos(2 * Math.random() - 1);
-  const theta = Math.random() * Math.PI * 2;
-  const r     = 2.5 + Math.random() * 4.5;
-  nodePositions.push(new THREE.Vector3(
-    r * Math.sin(phi) * Math.cos(theta),
-    r * Math.cos(phi),
-    r * Math.sin(phi) * Math.sin(theta)
-  ));
+// 2D Random
+vec2 random2(vec2 st){
+    st = vec2( dot(st,vec2(127.1,311.7)),
+              dot(st,vec2(269.5,183.3)) );
+    return -1.0 + 2.0*fract(sin(st)*43758.5453123);
 }
 
-// Build edges (random connections, no duplicates)
-const edges = [];
-const edgeSet = new Set();
-let attempts = 0;
-while (edges.length < EDGE_COUNT && attempts < 5000) {
-  const a = Math.floor(Math.random() * NODE_COUNT);
-  const b = Math.floor(Math.random() * NODE_COUNT);
-  if (a !== b) {
-    const key = a < b ? `${a}-${b}` : `${b}-${a}`;
-    if (!edgeSet.has(key)) {
-      edgeSet.add(key);
-      edges.push([a, b]);
-      nodeConnections[a].push(b);
-      nodeConnections[b].push(a);
+// 2D Noise
+float noise(vec2 st) {
+    vec2 i = floor(st);
+    vec2 f = fract(st);
+
+    vec2 u = f*f*(3.0-2.0*f);
+
+    return mix( mix( dot( random2(i + vec2(0.0,0.0) ), f - vec2(0.0,0.0) ),
+                     dot( random2(i + vec2(1.0,0.0) ), f - vec2(1.0,0.0) ), u.x),
+                mix( dot( random2(i + vec2(0.0,1.0) ), f - vec2(0.0,1.0) ),
+                     dot( random2(i + vec2(1.0,1.0) ), f - vec2(1.0,1.0) ), u.x), u.y);
+}
+
+// FBM
+float fbm(vec2 st) {
+    float value = 0.0;
+    float amplitude = 0.5;
+    vec2 shift = vec2(100.0);
+    mat2 rot = mat2(cos(0.5), sin(0.5), -sin(0.5), cos(0.50));
+    for (int i = 0; i < 5; ++i) {
+        value += amplitude * noise(st);
+        st = rot * st * 2.0 + shift;
+        amplitude *= 0.5;
     }
-  }
-  attempts++;
+    return value;
 }
 
-// Node degrees → hub detection
-const degrees = nodeConnections.map(c => c.length);
-const maxDeg  = Math.max(...degrees);
+void main() {
+    vec2 st = gl_FragCoord.xy / uResolution.xy;
+    st.x *= uResolution.x / uResolution.y;
 
-// ── INSTANCED MESH FOR NODES ────────────────────
-const sphereGeo = new THREE.SphereGeometry(0.18, 10, 8);
-const nodeMat   = new THREE.MeshStandardMaterial({ roughness: 0.3, metalness: 0.6 });
-const instancedNodes = new THREE.InstancedMesh(sphereGeo, nodeMat, NODE_COUNT);
-instancedNodes.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    // Mouse influence
+    vec2 mouse = uMouse;
+    mouse.x *= uResolution.x / uResolution.y;
+    vec2 delta = st - mouse;
+    float dist = length(delta);
+    
+    // Swirl distortion based on mouse proximity
+    float swirl = exp(-dist * 3.0);
+    st += normalize(delta) * swirl * 0.1 * sin(uTime * 2.0);
 
-const dummy = new THREE.Object3D();
-const colorNormal  = new THREE.Color(0x3b82f6);
-const colorHub     = new THREE.Color(0xf59e0b);
-const colorHovered = new THREE.Color(0xffffff);
-const colorDimmed  = new THREE.Color(0x1e3a5f);
+    // Primary motion
+    vec2 q = vec2(0.);
+    q.x = fbm( st + 0.00 * uTime);
+    q.y = fbm( st + vec2(1.0));
 
-for (let i = 0; i < NODE_COUNT; i++) {
-  dummy.position.copy(nodePositions[i]);
-  dummy.updateMatrix();
-  instancedNodes.setMatrixAt(i, dummy.matrix);
-  const isHub = degrees[i] >= maxDeg * 0.6;
-  instancedNodes.setColorAt(i, isHub ? colorHub : colorNormal);
+    vec2 r = vec2(0.);
+    r.x = fbm( st + 1.0*q + vec2(1.7,9.2)+ 0.15*uTime );
+    r.y = fbm( st + 1.0*q + vec2(8.3,2.8)+ 0.126*uTime);
+
+    float f = fbm(st+r);
+
+    // Color palette (Teal, Purple, Pink)
+    vec3 color = mix(vec3(0.1, 0.05, 0.2),
+                     vec3(0.2, 0.0, 0.4),
+                     clamp((f*f)*4.0,0.0,1.0));
+
+    color = mix(color,
+                vec3(0.0, 0.8, 0.8),
+                clamp(length(q),0.0,1.0));
+
+    color = mix(color,
+                vec3(1.0, 0.3, 0.6),
+                clamp(length(r.x),0.0,1.0));
+
+    // Enhance contrast and vignette
+    vec3 finalColor = (f*f*f + .6*f*f + .5*f) * color;
+    float vignette = 1.0 - smoothstep(0.4, 1.5, length(gl_FragCoord.xy / uResolution.xy - 0.5));
+    
+    gl_FragColor = vec4(finalColor * vignette, 1.0);
 }
-instancedNodes.instanceMatrix.needsUpdate = true;
-instancedNodes.instanceColor.needsUpdate  = true;
-scene.add(instancedNodes);
+`;
 
-// Glow halos around hub nodes
-const haloGeo = new THREE.SphereGeometry(0.32, 8, 6);
-const haloMat = new THREE.MeshBasicMaterial({
-  color: 0xf59e0b, transparent: true, opacity: 0.08,
-  blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.FrontSide
+const uniforms = {
+  uTime: { value: 0 },
+  uResolution: { value: new THREE.Vector2(W, H) },
+  uMouse: { value: new THREE.Vector2(0.5, 0.5) }
+};
+
+const material = new THREE.ShaderMaterial({
+  vertexShader: `void main() { gl_Position = vec4(position, 1.0); }`,
+  fragmentShader,
+  uniforms
 });
-for (let i = 0; i < NODE_COUNT; i++) {
-  if (degrees[i] >= maxDeg * 0.6) {
-    const halo = new THREE.Mesh(haloGeo, haloMat.clone());
-    halo.position.copy(nodePositions[i]);
-    scene.add(halo);
-  }
-}
 
-// ── LINE SEGMENTS FOR EDGES ─────────────────────
-const edgePositions = new Float32Array(EDGE_COUNT * 2 * 3);
-for (let i = 0; i < edges.length; i++) {
-  const [a, b] = edges[i];
-  const pa = nodePositions[a], pb = nodePositions[b];
-  edgePositions[i*6+0] = pa.x; edgePositions[i*6+1] = pa.y; edgePositions[i*6+2] = pa.z;
-  edgePositions[i*6+3] = pb.x; edgePositions[i*6+4] = pb.y; edgePositions[i*6+5] = pb.z;
-}
+const plane = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), material);
+scene.add(plane);
 
-const edgeGeo = new THREE.BufferGeometry();
-edgeGeo.setAttribute('position', new THREE.BufferAttribute(edgePositions, 3));
-const lineColors = new Float32Array(EDGE_COUNT * 2 * 3);
-for (let i = 0; i < EDGE_COUNT * 2; i++) {
-  lineColors[i*3]   = 0.149; // r  (0x3b82f6 dimmed)
-  lineColors[i*3+1] = 0.220; // g
-  lineColors[i*3+2] = 0.420; // b
-}
-edgeGeo.setAttribute('color', new THREE.BufferAttribute(lineColors, 3));
-const edgeMat = new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.35 });
-const edgeLines = new THREE.LineSegments(edgeGeo, edgeMat);
-scene.add(edgeLines);
-
-// Particle background
-const starCount = 300;
-const starPos   = new Float32Array(starCount * 3);
-for (let i = 0; i < starCount * 3; i++) starPos[i] = (Math.random() - 0.5) * 60;
-const starGeo = new THREE.BufferGeometry();
-starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
-scene.add(new THREE.Points(starGeo, new THREE.PointsMaterial({
-  color: 0x4488ff, size: 0.04, transparent: true, opacity: 0.35, sizeAttenuation: true
-})));
-
-// Lighting
-scene.add(new THREE.AmbientLight(0xffffff, 0.6));
-const pl = new THREE.PointLight(0x3b82f6, 3, 30);
-pl.position.set(0, 8, 0);
-scene.add(pl);
-
-// ── RAYCASTING FOR HOVER ────────────────────────
-const raycaster  = new THREE.Raycaster();
-raycaster.params.Points.threshold = 0.3;
-const mouse      = new THREE.Vector2(-9, -9);
-let hoveredNode  = -1;
-let needsRender  = true;
-const hoverStat  = document.getElementById('hoverStat');
+// ── MOUSE TRACKING ───────────────────────────────
+let targetMx = 0.5, targetMy = 0.5;
+let curMx = 0.5, curMy = 0.5;
 
 renderer.domElement.addEventListener('mousemove', (e) => {
-  const rect = renderer.domElement.getBoundingClientRect();
-  mouse.x =  ((e.clientX - rect.left) / rect.width)  * 2 - 1;
-  mouse.y = -((e.clientY - rect.top)  / rect.height) * 2 + 1;
-  needsRender = true;
+  targetMx = e.clientX / window.innerWidth;
+  // GLSL Y is bottom-to-top
+  targetMy = 1.0 - (e.clientY / window.innerHeight);
 });
 
 renderer.domElement.addEventListener('mouseleave', () => {
-  mouse.set(-9, -9);
-  needsRender = true;
+  targetMx = 0.5; targetMy = 0.5;
 });
 
-function updateHover() {
-  raycaster.setFromCamera(mouse, camera);
-  const hit = raycaster.intersectObject(instancedNodes);
-  const newHovered = hit.length > 0 ? hit[0].instanceId : -1;
-
-  if (newHovered === hoveredNode) return;
-  hoveredNode = newHovered;
-
-  // Reset all colors
-  for (let i = 0; i < NODE_COUNT; i++) {
-    const isHub = degrees[i] >= maxDeg * 0.6;
-    instancedNodes.setColorAt(i, hoveredNode === -1
-      ? (isHub ? colorHub : colorNormal)
-      : colorDimmed
-    );
-  }
-
-  // Reset all edge colors
-  for (let i = 0; i < EDGE_COUNT * 2 * 3; i += 3) {
-    lineColors[i]   = hoveredNode === -1 ? 0.149 : 0.05;
-    lineColors[i+1] = hoveredNode === -1 ? 0.220 : 0.07;
-    lineColors[i+2] = hoveredNode === -1 ? 0.420 : 0.14;
-  }
-
-  if (hoveredNode !== -1) {
-    // Highlight hovered node
-    instancedNodes.setColorAt(hoveredNode, colorHovered);
-
-    // Highlight connected nodes + their edges
-    const connected = nodeConnections[hoveredNode];
-    connected.forEach(n => {
-      instancedNodes.setColorAt(n, new THREE.Color(0x60a5fa));
-    });
-
-    // Highlight connected edges
-    edges.forEach(([a, b], i) => {
-      if (a === hoveredNode || b === hoveredNode) {
-        // bright white edge
-        for (let v = 0; v < 2; v++) {
-          lineColors[(i*2+v)*3]   = 1.0;
-          lineColors[(i*2+v)*3+1] = 1.0;
-          lineColors[(i*2+v)*3+2] = 1.0;
-        }
-      }
-    });
-
-    hoverStat.innerHTML = `HOVER <span>Node ${hoveredNode} · deg ${degrees[hoveredNode]}</span>`;
-  } else {
-    hoverStat.innerHTML = `HOVER <span>—</span>`;
-  }
-
-  instancedNodes.instanceColor.needsUpdate = true;
-  edgeGeo.attributes.color.needsUpdate = true;
-}
+function lerp(a, b, t) { return a + (b - a) * t; }
 
 const clock = new THREE.Clock();
 
 function animate() {
   requestAnimationFrame(animate);
-  controls.update();
-  updateHover();
-
-  if (controls.autoRotate || needsRender) {
-    renderer.render(scene, camera);
-    needsRender = false;
-  }
+  
+  curMx = lerp(curMx, targetMx, 0.05);
+  curMy = lerp(curMy, targetMy, 0.05);
+  
+  uniforms.uTime.value = clock.getElapsedTime();
+  uniforms.uMouse.value.set(curMx, curMy);
+  
+  renderer.render(scene, camera);
 }
+
 animate();
 
 window.addEventListener('resize', () => {
   const W2 = window.innerWidth, H2 = window.innerHeight;
-  camera.aspect = W2 / H2;
-  camera.updateProjectionMatrix();
   renderer.setSize(W2, H2);
-  needsRender = true;
+  uniforms.uResolution.value.set(W2, H2);
 });
 </script>
 </body>

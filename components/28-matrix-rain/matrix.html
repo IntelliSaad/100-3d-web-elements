@@ -244,10 +244,10 @@ const fragmentShader = `
     vec2 cellUV = gl_PointCoord;
     vec2 uv = (vec2(col, row) + cellUV) / vec2(COLS, ROWS);
 
-    vec4 sample = texture2D(uAtlas, uv);
+    vec4 texColor = texture2D(uAtlas, uv);
 
     // Use green channel as the glyph mask
-    float mask = sample.g;
+    float mask = texColor.g;
     if (mask < 0.08) discard;
 
     // Flicker: random per-time variation

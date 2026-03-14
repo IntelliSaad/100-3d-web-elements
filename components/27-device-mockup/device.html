@@ -3,49 +3,117 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>3D Floating Device Mockup</title>
+  <title>3D Location Terrain Map</title>
   <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
     * { margin:0; padding:0; box-sizing:border-box; }
+    
     body {
-      background: radial-gradient(ellipse at top, #13111e 0%, #07080f 70%);
-      width:100%; height:100vh;
-      display:flex; flex-direction:column;
-      align-items:center; justify-content:center;
-      overflow:hidden; font-family:'Courier New',monospace;
+      background: radial-gradient(circle at center, #1e293b 0%, #0f172a 100%);
+      width:100%; height:100vh; overflow:hidden;
+      font-family:'Inter', sans-serif;
+      display:flex;
     }
-    #canvas-container { position:absolute; inset:0; }
-    canvas { display:block; }
 
-    .hud {
-      position:absolute; bottom:20px; left:50%; transform:translateX(-50%);
-      display:flex; gap:12px; z-index:10; align-items:center;
+    #canvas-container {
+      flex: 1;
+      position:relative;
     }
-    .hud-text {
-      font-size:9px; letter-spacing:3px; text-transform:uppercase;
-      color:rgba(255,255,255,0.2); pointer-events:none;
-    }
-    .hud-sep { width:1px; height:12px; background:rgba(255,255,255,0.1); }
 
-    .corner { position:absolute; width:14px; height:14px; border-color:rgba(255,255,255,0.08); border-style:solid; }
-    .tl { top:16px; left:16px; border-width:1px 0 0 1px; }
-    .tr { top:16px; right:16px; border-width:1px 1px 0 0; }
-    .bl { bottom:28px; left:16px; border-width:0 0 1px 1px; }
-    .br { bottom:28px; right:16px; border-width:0 1px 1px 0; }
+    canvas { display:block; outline:none; cursor:grab; }
+    canvas:active { cursor:grabbing; }
+
+    /* Left Panel Contact UI */
+    .contact-panel {
+      width: 420px;
+      background: #0f172a;
+      border-right: 1px solid rgba(255,255,255,0.05);
+      padding: 50px 40px;
+      display: flex; flex-direction: column;
+      z-index: 10;
+      color: #f8fafc;
+    }
+
+    .eyebrow { font-weight:700; font-size:12px; letter-spacing:3px; color:#38bdf8; text-transform:uppercase; margin-bottom:12px; }
+    h1 { font-size:36px; font-weight:700; margin-bottom:16px; letter-spacing:-1px; }
+    p { color:#94a3b8; line-height:1.6; font-size:15px; margin-bottom:40px; }
+
+    .input-grp { margin-bottom: 20px; }
+    label { display:block; font-size:13px; font-weight:600; color:#cbd5e1; margin-bottom:8px; }
+    input, textarea {
+      width: 100%; padding:14px; border-radius:8px;
+      background: #1e293b; border: 1px solid #334155;
+      color: #fff; font-family:'Inter', sans-serif;
+      transition: border-color 0.2s;
+    }
+    input:focus, textarea:focus { border-color: #38bdf8; outline:none; }
+    textarea { height: 100px; resize:none; }
+
+    .submit-btn {
+      width:100%; padding:16px; border-radius:8px;
+      background: linear-gradient(135deg, #38bdf8, #818cf8);
+      color:#fff; border:none;
+      font-size:16px; font-weight:600; cursor:pointer;
+      transition:opacity 0.2s;
+      margin-top: 10px;
+    }
+    .submit-btn:hover { opacity:0.9; }
+
+    .location-info {
+      margin-top: auto;
+      padding-top: 30px; border-top: 1px solid rgba(255,255,255,0.1);
+      display: flex; gap: 15px; align-items:flex-start;
+    }
+    .pin-icon { font-size:24px; color:#38bdf8; }
+    .loc-text { font-size:14px; color:#cbd5e1; line-height:1.5; }
+    .loc-text strong { color:#fff; display:block; margin-bottom:4px; }
+
+    .hint {
+      position:absolute; bottom:20px; right:20px;
+      font-size:11px; color:rgba(255,255,255,0.3); letter-spacing:2px; text-transform:uppercase;
+      pointer-events:none;
+    }
+
+    @media (max-width: 850px) {
+      body { flex-direction:column-reverse; }
+      #canvas-container { height: 40vh; flex:none; }
+      .contact-panel { width:100%; height:60vh; padding:30px 20px; overflow-y:auto; }
+    }
   </style>
 </head>
 <body>
 
-<div id="canvas-container"></div>
+<div class="contact-panel">
+  <div>
+    <div class="eyebrow">Get In Touch</div>
+    <h1>Global HQ</h1>
+    <p>Visit our cutting-edge innovation lab or drop us a message below.</p>
+  </div>
 
-<div class="corner tl"></div>
-<div class="corner tr"></div>
-<div class="corner bl"></div>
-<div class="corner br"></div>
+  <form onsubmit="event.preventDefault()">
+    <div class="input-grp">
+      <label>Name</label>
+      <input type="text" placeholder="John Doe">
+    </div>
+    <div class="input-grp">
+      <label>Message</label>
+      <textarea placeholder="How can we help you?"></textarea>
+    </div>
+    <button class="submit-btn" type="button">Send Transmission</button>
+  </form>
 
-<div class="hud">
-  <span class="hud-text">Drag to rotate</span>
-  <div class="hud-sep"></div>
-  <span class="hud-text">Scroll to zoom</span>
+  <div class="location-info">
+    <div class="pin-icon">📍</div>
+    <div class="loc-text">
+      <strong>Sector 7G, Cyber District</strong>
+      1001 Matrix Blvd, Neo-City<br/>
+      CA 94105, Earth
+    </div>
+  </div>
+</div>
+
+<div id="canvas-container">
+  <div class="hint">drag to rotate map</div>
 </div>
 
 <script type="importmap">
@@ -62,321 +130,194 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
 const container = document.getElementById('canvas-container');
-const W = container.clientWidth || window.innerWidth;
-const H = container.clientHeight || window.innerHeight;
+let W = container.clientWidth;
+let H = container.clientHeight;
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
 renderer.setSize(W, H);
-renderer.setClearColor(0x000000, 0);
+// Enable shadows for realism
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 container.appendChild(renderer.domElement);
 
-const scene  = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(40, W / H, 0.1, 100);
-camera.position.set(0, 0.5, 7);
+const scene = new THREE.Scene();
+// Isometric perspective
+const camera = new THREE.OrthographicCamera(-5, 5, 5, -5, 0.1, 100);
+camera.position.set(10, 10, 10);
+camera.lookAt(0, 0, 0);
 
-// ── CONTROLS (drag to rotate, scroll to zoom) ──
 const controls = new OrbitControls(camera, renderer.domElement);
-controls.enableDamping    = true;
-controls.dampingFactor    = 0.06;
-controls.enableZoom       = true;
-controls.minDistance      = 4;
-controls.maxDistance      = 12;
-controls.enablePan        = false;
-controls.minPolarAngle    = Math.PI * 0.1;
-controls.maxPolarAngle    = Math.PI * 0.85;
+controls.enableDamping = true;
+controls.dampingFactor = 0.05;
+controls.enableZoom = false; // keep framing fixed
+controls.enablePan = false;
+controls.maxPolarAngle = Math.PI/2 - 0.1; // Don't allow going under the map
 
-// ── LIGHTING ──────────────────────────────────────
-const ambient = new THREE.AmbientLight(0xffffff, 0.5);
+// ── CUSTOM LIGHTING FOR STYLIZED CITY ─────────────────
+const ambient = new THREE.AmbientLight(0x1a2e4c, 1.2); // Cool night ambient
 scene.add(ambient);
 
-const keyLight = new THREE.DirectionalLight(0xd4e8ff, 2.0);
-keyLight.position.set(3, 6, 4);
+const keyLight = new THREE.DirectionalLight(0xfff5e6, 2.5); // Warm sun/streetlamp
+keyLight.position.set(5, 8, -5);
 keyLight.castShadow = true;
-keyLight.shadow.mapSize.set(1024, 1024);
+keyLight.shadow.mapSize.width = 1024;
+keyLight.shadow.mapSize.height = 1024;
+keyLight.shadow.bias = -0.001;
 scene.add(keyLight);
 
-const rimLight = new THREE.DirectionalLight(0xa78bfa, 1.2);
-rimLight.position.set(-4, 2, -3);
-scene.add(rimLight);
-
-const fillLight = new THREE.PointLight(0x67e8f9, 1.5, 20);
-fillLight.position.set(0, -3, 4);
+const fillLight = new THREE.DirectionalLight(0x38bdf8, 1.0); // Cyan rim light
+fillLight.position.set(-5, 3, 5);
 scene.add(fillLight);
 
-// ── PHONE BODY ────────────────────────────────────
-// Total phone: ~2.4 wide × 4.8 tall × 0.28 deep (< 5000 poly)
-const phonePivot = new THREE.Group();
-scene.add(phonePivot);
 
-// Clay-like material — matte, pale
-const CLAY = new THREE.MeshStandardMaterial({
-  color: 0xdce2f0, roughness: 0.75, metalness: 0.05,
+// ── MATERIALS ─────────────────────────────────────────
+const matBase = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.9 });
+const matBuilding = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.7, metalness: 0.2 });
+const matHighlight = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.5, metalness: 0.4 });
+const matPinTop = new THREE.MeshStandardMaterial({ color: 0x38bdf8, roughness: 0.1, metalness: 0.8 }); // Glossy Cyan
+const matPinDot = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.1 });
+
+const mapGroup = new THREE.Group();
+scene.add(mapGroup);
+
+// ── TERRAIN BASE (Thick City Block) ──────────────────
+const baseGeo = new THREE.BoxGeometry(6, 1, 6);
+const base = new THREE.Mesh(baseGeo, matBase);
+base.position.y = -0.5;
+base.receiveShadow = true;
+base.castShadow = true;
+mapGroup.add(base);
+
+// Road lines
+const roadGeo = new THREE.PlaneGeometry(6, 0.6);
+const matRoad = new THREE.MeshBasicMaterial({ color: 0x0f172a });
+const road1 = new THREE.Mesh(roadGeo, matRoad);
+road1.rotation.x = -Math.PI/2;
+road1.position.y = 0.01;
+road1.position.z = 1.0;
+road1.receiveShadow = true;
+mapGroup.add(road1);
+
+const road2 = new THREE.Mesh(roadGeo, matRoad);
+road2.rotation.x = -Math.PI/2;
+road2.rotation.z = Math.PI/2;
+road2.position.y = 0.01;
+road2.position.x = -1.0;
+road2.receiveShadow = true;
+mapGroup.add(road2);
+
+
+// ── PROCEDURAL BUILDINGS ─────────────────────────────
+// Hardcode positions for a dense city block look without importing a model
+const bData = [
+  // x, z, w, h, d, type
+  [2, -2, 1.2, 3.0, 1.2, matBuilding],
+  [2.1, 0, 0.8, 1.2, 0.8, matBuilding],
+  [2.0, 2.0, 1.5, 4.2, 1.5, matHighlight], // The main HQ wrapper 
+  [0, -2, 0.8, 2.0, 0.8, matBuilding],
+  [-2.2, -2.2, 1.0, 1.5, 1.0, matBuilding],
+  [-2.0, 0.5, 0.9, 1.8, 0.9, matBuilding],
+  [-0.2, 2.2, 0.7, 1.0, 0.7, matBuilding],
+  [-2.2, 2.2, 1.2, 2.5, 1.2, matBuilding]
+];
+
+const bGeometries = [];
+bData.forEach(d => {
+  const geo = new THREE.BoxGeometry(d[2], d[3], d[4]);
+  // shift origin to bottom
+  geo.translate(0, d[3]/2, 0);
+  const mesh = new THREE.Mesh(geo, d[5]);
+  mesh.position.set(d[0], 0, d[1]);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  mapGroup.add(mesh);
 });
-const CLAY_DARK = new THREE.MeshStandardMaterial({
-  color: 0x9fa8c0, roughness: 0.7, metalness: 0.1,
+
+// ── GIANT LOCATION PIN ───────────────────────────────
+const pinGroup = new THREE.Group();
+
+// Pin cone/body
+const pinGeo = new THREE.ConeGeometry(0.5, 1.5, 32);
+pinGeo.translate(0, 0.75, 0); // Origin at tip
+const pinMesh = new THREE.Mesh(pinGeo, matPinTop);
+pinMesh.rotation.x = Math.PI; // point downwards
+pinMesh.position.y = 2.0; 
+pinMesh.castShadow = true;
+pinGroup.add(pinMesh);
+
+// Pin head sphere
+const headGeo = new THREE.SphereGeometry(0.5, 32, 32);
+const headMesh = new THREE.Mesh(headGeo, matPinTop);
+headMesh.position.y = 2.0;
+headMesh.castShadow = true;
+pinGroup.add(headMesh);
+
+// Inner white dot
+const dotGeo = new THREE.SphereGeometry(0.25, 16, 16);
+const dotMesh = new THREE.Mesh(dotGeo, matPinDot);
+dotMesh.position.y = 2.0;
+dotMesh.position.z = 0.4; // Slightly offset to stick out
+pinGroup.add(dotMesh);
+
+// Place pin above the HQ building [2, 2]
+pinGroup.position.set(2.0, 4.3, 2.0);
+scene.add(pinGroup);
+
+
+// ── ANIMATION LOOP ──────────────────────────────────
+const clock = new THREE.Clock();
+let isIdle = true;
+let idleTimer = null;
+
+controls.addEventListener('start', () => { 
+  isIdle = false; 
+  clearTimeout(idleTimer);
 });
-const GLASS_FRAME = new THREE.MeshStandardMaterial({
-  color: 0xb0bcd4, roughness: 0.2, metalness: 0.6,
-});
-
-// Body shell
-const bodyGeo = new THREE.BoxGeometry(2.4, 4.8, 0.28, 1, 1, 1);
-// Round corners by using a CylinderGeometry for the frame — approximate with box + beveled effect
-const body = new THREE.Mesh(bodyGeo, CLAY);
-body.castShadow = true;
-body.receiveShadow = true;
-phonePivot.add(body);
-
-// Frame edge (slightly larger, darker)
-const frameGeo = new THREE.BoxGeometry(2.52, 4.92, 0.26, 1, 1, 1);
-const frame = new THREE.Mesh(frameGeo, CLAY_DARK);
-frame.position.z = 0.01;
-phonePivot.add(frame);
-// Bring body in front of frame
-body.position.z = 0.015;
-
-// Screen bezel
-const screenGeo = new THREE.BoxGeometry(2.1, 4.3, 0.01);
-const screenBezel = new THREE.Mesh(screenGeo, CLAY_DARK);
-screenBezel.position.z = 0.15;
-phonePivot.add(screenBezel);
-
-// ── VIDEO TEXTURE SCREEN ───────────────────────────
-// Use a CanvasTexture with live drawn UI to simulate a running app
-const screenCanvas = document.createElement('canvas');
-screenCanvas.width  = 420;
-screenCanvas.height = 860;
-const ctx = screenCanvas.getContext('2d');
-
-const screenTex = new THREE.CanvasTexture(screenCanvas);
-screenTex.minFilter = THREE.LinearFilter;
-
-const screenGeo2 = new THREE.PlaneGeometry(2.0, 4.2);
-const screenMat  = new THREE.MeshBasicMaterial({ map: screenTex });
-const screenMesh = new THREE.Mesh(screenGeo2, screenMat);
-screenMesh.position.z = 0.158;
-phonePivot.add(screenMesh);
-
-// Draw animated UI on canvas
-let uiFrame = 0;
-const uiColors = ['#6366f1', '#8b5cf6', '#a855f7'];
-
-function drawUI(t) {
-  const W = screenCanvas.width, H = screenCanvas.height;
-  ctx.clearRect(0, 0, W, H);
-
-  // Background
-  ctx.fillStyle = '#0d0d14';
-  ctx.fillRect(0, 0, W, H);
-
-  // Status bar
-  ctx.fillStyle = 'rgba(255,255,255,0.08)';
-  ctx.fillRect(0, 0, W, 52);
-  ctx.fillStyle = 'rgba(255,255,255,0.35)';
-  ctx.font = '700 22px Arial';
-  ctx.fillText('9:41', 28, 36);
-  ctx.fillStyle = 'rgba(255,255,255,0.25)';
-  ctx.font = '18px Arial';
-  ctx.fillText('●●●●  WiFi  🔋', W - 200, 36);
-
-  // Hero card
-  const grad = ctx.createLinearGradient(20, 70, W-20, 240);
-  grad.addColorStop(0, '#3730a3');
-  grad.addColorStop(1, '#6366f1');
-  ctx.fillStyle = grad;
-  ctx.roundRect(20, 70, W-40, 200, 24);
-  ctx.fill();
-
-  ctx.fillStyle = 'rgba(255,255,255,0.85)';
-  ctx.font = '700 34px Arial';
-  ctx.fillText('WristHub', 36, 130);
-  ctx.fillStyle = 'rgba(255,255,255,0.5)';
-  ctx.font = '20px Arial';
-  ctx.fillText('Premium Timepieces', 36, 164);
-
-  // Animated pulse ring
-  const pulse = 0.5 + Math.sin(t * 3) * 0.5;
-  ctx.strokeStyle = `rgba(255,255,255,${0.15 + pulse * 0.2})`;
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.arc(W - 70, 170, 20 + pulse * 12, 0, Math.PI * 2);
-  ctx.stroke();
-  ctx.fillStyle = 'rgba(255,255,255,0.8)';
-  ctx.beginPath();
-  ctx.arc(W - 70, 170, 12, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Section title
-  ctx.fillStyle = 'rgba(255,255,255,0.5)';
-  ctx.font = '700 20px Arial';
-  ctx.fillText('NEW ARRIVALS', 20, 304);
-
-  // Product cards row
-  const cardData = [
-    { label:'Tourbillon',  price:'$18,500', color:'#1e3a5f' },
-    { label:'Chronograph', price:'$7,200',  color:'#1a1a2e' },
-    { label:'Diver',       price:'$3,800',  color:'#1a2e1a' },
-  ];
-  cardData.forEach((card, i) => {
-    const cx = 20 + i * 136;
-    ctx.fillStyle = card.color;
-    ctx.roundRect(cx, 316, 122, 170, 14);
-    ctx.fill();
-
-    // Watch icon placeholder
-    ctx.strokeStyle = 'rgba(212,175,55,0.6)';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(cx + 61, 396, 32, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.beginPath();
-    // hour hand
-    const angle = t * 0.5 + i;
-    ctx.moveTo(cx+61, 396);
-    ctx.lineTo(cx+61 + Math.sin(angle)*20, 396 - Math.cos(angle)*20);
-    ctx.strokeStyle = 'rgba(212,175,55,0.9)';
-    ctx.stroke();
-
-    ctx.fillStyle = 'rgba(255,255,255,0.7)';
-    ctx.font = '600 16px Arial';
-    ctx.fillText(card.label, cx + 8, 452);
-    ctx.fillStyle = 'rgba(212,175,55,0.9)';
-    ctx.font = '700 15px Arial';
-    ctx.fillText(card.price, cx + 8, 474);
-  });
-
-  // Bottom nav bar
-  ctx.fillStyle = 'rgba(13,13,20,0.95)';
-  ctx.fillRect(0, H - 110, W, 110);
-  ctx.strokeStyle = 'rgba(255,255,255,0.05)';
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.moveTo(0, H - 110);
-  ctx.lineTo(W, H - 110);
-  ctx.stroke();
-
-  const navItems = ['⌂','◎','♡','☰'];
-  navItems.forEach((icon, i) => {
-    const nx = W / 4 * i + W / 8;
-    const isActive = Math.floor(t * 0.3) % 4 === i;
-    ctx.fillStyle = isActive ? '#6366f1' : 'rgba(255,255,255,0.25)';
-    ctx.font = '28px Arial';
-    ctx.textAlign = 'center';
-    ctx.fillText(icon, nx, H - 60);
-    if (isActive) {
-      ctx.fillStyle = '#6366f1';
-      ctx.beginPath();
-      ctx.arc(nx, H - 30, 3, 0, Math.PI * 2);
-      ctx.fill();
-    }
-  });
-  ctx.textAlign = 'left';
-}
-
-// ── PHONE DETAILS ─────────────────────────────────
-// Notch
-const notchGeo = new THREE.BoxGeometry(0.55, 0.14, 0.03);
-const notch = new THREE.Mesh(notchGeo, CLAY_DARK);
-notch.position.set(0, 2.1, 0.17);
-phonePivot.add(notch);
-
-// Home indicator
-const homeGeo = new THREE.BoxGeometry(0.6, 0.04, 0.02);
-const home = new THREE.Mesh(homeGeo, new THREE.MeshStandardMaterial({ color:0xadb5cc, roughness:0.5 }));
-home.position.set(0, -2.06, 0.17);
-phonePivot.add(home);
-
-// Side buttons
-const btnMat = new THREE.MeshStandardMaterial({ color:0xb8c2d8, roughness:0.4, metalness:0.3 });
-[-0.7,-0.4].forEach(y => {
-  const btn = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.25, 0.06), btnMat);
-  btn.position.set(-1.29, y, 0);
-  phonePivot.add(btn);
-});
-const pwrBtn = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.35, 0.06), btnMat);
-pwrBtn.position.set(1.29, 0.1, 0);
-phonePivot.add(pwrBtn);
-
-// Camera bump
-const camBump = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 0.04, 24), btnMat);
-camBump.rotation.x = Math.PI / 2;
-camBump.position.set(-0.6, 1.8, -0.16);
-phonePivot.add(camBump);
-const lens = new THREE.Mesh(new THREE.CylinderGeometry(0.10, 0.10, 0.05, 20),
-  new THREE.MeshStandardMaterial({ color:0x0a0a14, roughness:0.0, metalness:0.9 }));
-lens.rotation.x = Math.PI / 2;
-lens.position.set(-0.6, 1.8, -0.19);
-phonePivot.add(lens);
-
-// ── SHADOW PLANE ─────────────────────────────────
-const shadowPlane = new THREE.Mesh(
-  new THREE.PlaneGeometry(14, 14),
-  new THREE.MeshStandardMaterial({ color:0x000000, transparent:true, opacity:0.0, roughness:1 })
-);
-shadowPlane.rotation.x = -Math.PI / 2;
-shadowPlane.position.y = -3.5;
-shadowPlane.receiveShadow = true;
-scene.add(shadowPlane);
-
-// ── ENVIRONMENT BLOOM (fake) ─────────────────────
-const bgSphere = new THREE.Mesh(
-  new THREE.SphereGeometry(30, 16, 12),
-  new THREE.MeshBasicMaterial({ color:0x08080f, side:THREE.BackSide })
-);
-scene.add(bgSphere);
-
-// subtle particles
-const pCount = 100;
-const pPos = new Float32Array(pCount * 3);
-for (let i = 0; i < pCount * 3; i++) pPos[i] = (Math.random()-0.5) * 20;
-const pGeo = new THREE.BufferGeometry();
-pGeo.setAttribute('position', new THREE.BufferAttribute(pPos, 3));
-scene.add(new THREE.Points(pGeo, new THREE.PointsMaterial({
-  color:0x6366f1, size:0.05, transparent:true, opacity:0.4, sizeAttenuation:true
-})));
-
-// ── ANIMATION ────────────────────────────────────
-const clock  = new THREE.Clock();
-let   isIdle = true;
-
-controls.addEventListener('start', () => { isIdle = false; });
 controls.addEventListener('end', () => {
-  setTimeout(() => { isIdle = true; }, 2000);
+  idleTimer = setTimeout(() => { isIdle = true; }, 3000);
 });
 
 function animate() {
   requestAnimationFrame(animate);
   const t = clock.getElapsedTime();
 
-  // Draw animated UI onto canvas texture
-  uiFrame++;
-  if (uiFrame % 2 === 0) { // 30fps draw rate
-    drawUI(t);
-    screenTex.needsUpdate = true;
+  // Gentle floating animation for the map block when idle
+  if (isIdle) {
+    mapGroup.position.y = Math.sin(t * 1.5) * 0.1;
+    controls.autoRotate = true;
+    controls.autoRotateSpeed = 0.5;
+  } else {
+    controls.autoRotate = false;
   }
 
-  // Gentle bob when idle (no user interaction)
-  if (isIdle) {
-    phonePivot.position.y = Math.sin(t * 0.9) * 0.15;
-    phonePivot.rotation.y = Math.sin(t * 0.4) * 0.08;
-    phonePivot.rotation.x = Math.sin(t * 0.3) * 0.04 - 0.05;
-  }
+  // Pin bobs independently 
+  pinGroup.position.y = 4.3 + Math.sin(t * 4) * 0.15;
 
   controls.update();
   renderer.render(scene, camera);
 }
-
 animate();
 
 window.addEventListener('resize', () => {
-  const W2 = window.innerWidth, H2 = window.innerHeight;
-  camera.aspect = W2 / H2;
+  W = container.clientWidth;
+  H = container.clientHeight;
+  
+  // Update Orthographic Camera
+  const aspect = W / H;
+  const viewSize = 7.5; // Zoom level
+  camera.left = -aspect * viewSize;
+  camera.right = aspect * viewSize;
+  camera.top = viewSize;
+  camera.bottom = -viewSize;
+  
   camera.updateProjectionMatrix();
-  renderer.setSize(W2, H2);
+  renderer.setSize(W, H);
 });
+
+// Trigger initial resize to setup ortho framing correctly
+window.dispatchEvent(new Event('resize'));
+
 </script>
 </body>
 </html>

@@ -3,245 +3,303 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Depth-Mapped 3D Parallax</title>
+  <title>3D Product Configurator</title>
   <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
     * { margin:0; padding:0; box-sizing:border-box; }
+    
     body {
-      background:#08080c;
-      width:100%; height:100vh;
-      display:flex; flex-direction:column;
-      align-items:center; justify-content:center;
-      overflow:hidden; font-family:'Courier New',monospace;
+      background: #f8fafc;
+      width:100%; height:100vh; overflow:hidden;
+      font-family:'Inter', sans-serif;
+      display:flex;
     }
-    .frame {
+
+    #canvas-container {
+      flex: 1;
       position:relative;
-      border-radius:12px; overflow:hidden;
-      box-shadow: 0 40px 80px rgba(0,0,0,0.9), 0 0 0 1px rgba(255,255,255,0.06);
+      background: radial-gradient(circle at center, #ffffff 0%, #e2e8f0 100%);
     }
-    #canvas-container { width:400px; height:300px; cursor:none; }
-    canvas { display:block; }
 
-    .label {
-      position:absolute; bottom:0; left:0; right:0;
-      padding:16px 18px 14px;
-      background:linear-gradient(transparent, rgba(0,0,0,0.9));
-      display:flex; justify-content:space-between; align-items:flex-end;
-      pointer-events:none;
-    }
-    .label-title { font-size:15px; font-weight:700; color:white; }
-    .label-sub   { font-size:9px; color:rgba(255,255,255,0.35); letter-spacing:2px; text-transform:uppercase; margin-top:3px; }
-    .label-badge { font-size:9px; color:rgba(99,179,237,0.7); letter-spacing:2px; text-transform:uppercase; }
+    canvas { display:block; outline:none; }
 
-    .depth-indicator {
-      position:absolute; top:12px; right:12px;
-      font-size:8px; letter-spacing:2px; color:rgba(255,255,255,0.25);
-      text-transform:uppercase; background:rgba(0,0,0,0.4);
-      padding:4px 8px; border-radius:4px; backdrop-filter:blur(4px);
-      pointer-events:none;
+    /* Right Panel UI */
+    .ui-panel {
+      width: 400px;
+      background: #ffffff;
+      box-shadow: -10px 0 30px rgba(0,0,0,0.05);
+      padding: 40px;
+      display: flex; flex-direction: column;
+      z-index: 10;
     }
-    .hint { margin-top:14px; font-size:10px; letter-spacing:3px; color:rgba(255,255,255,0.15); text-transform:uppercase; }
+
+    .brand { font-weight:800; font-size:14px; letter-spacing:2px; color:#94a3b8; text-transform:uppercase; margin-bottom:8px; }
+    h1 { font-size:32px; font-weight:800; color:#0f172a; margin-bottom:12px; letter-spacing:-1px; }
+    .price { font-size:24px; font-weight:600; color:#6366f1; margin-bottom:30px; }
+    
+    .divider { height:1px; background:#e2e8f0; margin:30px 0; }
+
+    h3 { font-size:12px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:1px; margin-bottom:16px; }
+
+    .colors {
+      display:flex; gap:12px; margin-bottom: 24px;
+    }
+    .color-btn {
+      width:40px; height:40px; border-radius:50%;
+      border:2px solid transparent; cursor:pointer;
+      transition:all 0.2s;
+      outline-offset: 2px;
+    }
+    .color-btn.active { outline: 2px solid #6366f1; transform:scale(1.1); }
+    
+    /* Specific Colors */
+    .c-slate { background: #334155; }
+    .c-rose { background: #fda4af; }
+    .c-mint { background: #6ee7b7; }
+    .c-gold { background: #fbbf24; }
+
+    .finish-options {
+      display:flex; gap:12px;
+    }
+    .finish-btn {
+      flex:1; padding:12px 0; border-radius:8px;
+      border:1px solid #cbd5e1; background:transparent;
+      font-weight:600; color:#475569; cursor:pointer;
+      transition:all 0.2s;
+    }
+    .finish-btn.active {
+      border-color:#6366f1; background:#eff6ff; color:#6366f1;
+    }
+
+    .buy-btn {
+      margin-top:auto;
+      width:100%; padding:18px; border-radius:12px;
+      background:#0f172a; color:#fff; border:none;
+      font-size:16px; font-weight:600; cursor:pointer;
+      transition:transform 0.2s;
+    }
+    .buy-btn:hover { transform:translateY(-2px); box-shadow:0 10px 20px rgba(15,23,42,0.15); }
+
+    .hint {
+      position:absolute; bottom:20px; left:20px;
+      font-size:11px; color:#64748b; font-weight:500;
+    }
+
+    @media (max-width: 800px) {
+      body { flex-direction:column; }
+      #canvas-container { height: 50vh; flex:none; }
+      .ui-panel { width:100%; height:50vh; padding:20px; overflow-y:auto; }
+    }
   </style>
 </head>
 <body>
 
-<div class="frame">
-  <div id="canvas-container"></div>
-  <div class="label">
-    <div>
-      <div class="label-title">Depth Parallax</div>
-      <div class="label-sub">Fragment Shader · GPU-only · 60fps</div>
-    </div>
-    <div class="label-badge">GLSL</div>
-  </div>
-  <div class="depth-indicator" id="depthInfo">depth · active</div>
+<div id="canvas-container">
+  <div class="hint">Left Click: Rotate · Right Click: Pan · Scroll: Zoom</div>
 </div>
-<p class="hint">‹ move cursor for 3D parallax ›</p>
+
+<div class="ui-panel">
+  <div class="brand">AeroTech Audio</div>
+  <h1>Studio Pro X1</h1>
+  <div class="price">$299.00</div>
+  
+  <p style="color:#64748b; font-size:14px; line-height:1.6;">
+    Premium noise-cancelling headphones. Customize your color and finish below to see it update in real-time.
+  </p>
+
+  <div class="divider"></div>
+
+  <h3>Choose Color</h3>
+  <div class="colors">
+    <button class="color-btn c-slate active" data-color="#334155"></button>
+    <button class="color-btn c-rose" data-color="#fda4af"></button>
+    <button class="color-btn c-mint" data-color="#6ee7b7"></button>
+    <button class="color-btn c-gold" data-color="#fbbf24"></button>
+  </div>
+
+  <h3 style="margin-top:10px;">Select Finish</h3>
+  <div class="finish-options">
+    <button class="finish-btn active" data-roughness="0.7" data-metal="0.1">Matte</button>
+    <button class="finish-btn" data-roughness="0.2" data-metal="0.8">Glossy Metallic</button>
+  </div>
+
+  <button class="buy-btn">Add to Cart</button>
+</div>
 
 <script type="importmap">
-{ "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
 </script>
 
 <script type="module">
 import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
 const container = document.getElementById('canvas-container');
-const W = container.clientWidth;
-const H = container.clientHeight;
+let W = container.clientWidth;
+let H = container.clientHeight;
 
-const renderer = new THREE.WebGLRenderer({ antialias: true });
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
 renderer.setSize(W, H);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.0;
 container.appendChild(renderer.domElement);
 
-const scene  = new THREE.Scene();
-const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(35, W / H, 0.1, 100);
+camera.position.set(4, 2, 5);
 
-// ── VERTEX SHADER ────────────────────────────────
-const vertexShader = `
-  varying vec2 vUv;
-  void main() {
-    vUv = uv;
-    gl_Position = vec4(position, 1.0);
-  }
-`;
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.05;
+controls.minDistance = 3;
+controls.maxDistance = 10;
+controls.target.set(0, 0, 0);
 
-// ── FRAGMENT SHADER: depth-driven parallax ───────
-const fragmentShader = `
-  uniform sampler2D uImage;
-  uniform sampler2D uDepth;
-  uniform vec2      uMouse;    // -1..1 normalised
-  uniform float     uStrength; // parallax magnitude
-  uniform float     uTime;
-  varying vec2      vUv;
+// Fast, high-quality lighting environment
+const pmremGenerator = new THREE.PMREMGenerator(renderer);
+scene.environment = pmremGenerator.fromScene(new RoomEnvironment(), 0.04).texture;
 
-  void main() {
-    // Sample depth map — red channel = depth (white near, black far)
-    float depth = texture2D(uDepth, vUv).r;
-
-    // Parallax offset: pixels closer (brighter in depth map) shift more
-    vec2 offset = uMouse * depth * uStrength;
-
-    // Slight idle breathe when mouse is still
-    float breathe = sin(uTime * 0.9) * 0.004 * (1.0 - depth);
-    offset += vec2(breathe, breathe * 0.6);
-
-    // Displace UV by offset
-    vec2 dispUv = vUv + offset;
-
-    // Edge softening (prevent texture fetch outside 0-1)
-    dispUv = clamp(dispUv, 0.002, 0.998);
-
-    // Chromatic aberration scales with depth displacement length
-    float aberr = length(offset) * 1.8;
-    float r = texture2D(uImage, dispUv + vec2( aberr, 0.0)).r;
-    float g = texture2D(uImage, dispUv).g;
-    float b = texture2D(uImage, dispUv - vec2( aberr, 0.0)).b;
-
-    // Vignette
-    vec2 uv2 = vUv - 0.5;
-    float vignette = 1.0 - dot(uv2, uv2) * 1.2;
-
-    gl_FragColor = vec4(vec3(r,g,b) * vignette, 1.0);
-  }
-`;
-
-// ── PROCEDURAL DEPTH MAP ─────────────────────────
-// Build on a canvas: centre bright (close), edges dark, with subject shapes
-function makeDepthTexture(w, h) {
-  const c = document.createElement('canvas');
-  c.width = w; c.height = h;
-  const ctx = c.getContext('2d');
-
-  // Base: radial falloff (center = near = white)
-  const grad = ctx.createRadialGradient(w*0.5, h*0.45, 0, w*0.5, h*0.45, Math.max(w,h)*0.65);
-  grad.addColorStop(0.0, '#ffffff');
-  grad.addColorStop(0.5, '#888888');
-  grad.addColorStop(1.0, '#111111');
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, w, h);
-
-  // Subject on left side: mountains (far = darker)
-  ctx.fillStyle = '#404040';
-  ctx.beginPath();
-  ctx.moveTo(0, h*0.7);
-  ctx.lineTo(w*0.28, h*0.25);
-  ctx.lineTo(w*0.5, h*0.55);
-  ctx.lineTo(w*0.7, h*0.18);
-  ctx.lineTo(w, h*0.5);
-  ctx.lineTo(w, h);
-  ctx.lineTo(0, h);
-  ctx.closePath();
-  ctx.fill();
-
-  // Snow peaks (very close = white)
-  ctx.fillStyle = '#d0d0d0';
-  ctx.beginPath();
-  ctx.moveTo(w*0.26, h*0.28);
-  ctx.lineTo(w*0.28, h*0.25);
-  ctx.lineTo(w*0.30, h*0.28);
-  ctx.closePath();
-  ctx.fill();
-
-  ctx.fillStyle = '#cccccc';
-  ctx.beginPath();
-  ctx.moveTo(w*0.68, h*0.20);
-  ctx.lineTo(w*0.70, h*0.18);
-  ctx.lineTo(w*0.72, h*0.20);
-  ctx.closePath();
-  ctx.fill();
-
-  // Foreground strip (closest = brightest)
-  const fgGrad = ctx.createLinearGradient(0, h*0.75, 0, h);
-  fgGrad.addColorStop(0, 'rgba(255,255,255,0)');
-  fgGrad.addColorStop(1, 'rgba(255,255,255,0.6)');
-  ctx.fillStyle = fgGrad;
-  ctx.fillRect(0, h*0.75, w, h*0.25);
-
-  // Blur slightly to smooth transitions
-  // (canvas doesn't natively blur; skip for perf)
-
-  const tex = new THREE.CanvasTexture(c);
-  tex.minFilter = THREE.LinearFilter;
-  return tex;
-}
-
-// ── TEXTURES ─────────────────────────────────────
-const loader = new THREE.TextureLoader();
-
-const imgTexture = loader.load(
-  'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=800&h=600&fit=crop&q=90&auto=format',
-  () => { needsRender = true; }
+// Fake shadow under object
+const shadowTex = new THREE.TextureLoader().load('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAIAAAACACAYAAADDPmHLAAAABHNCSVQICAgIfAhkiAAAAAlwSFlzAAALEwAACxMBAJqcGAAAAZlJREFUeJzt2bttAzEUBNEtJ7A7y3G17EANsAkI5AF24G+eYwbD233H+Pz8/Pr8v144h22+L1zT93e9A9wX3wGOje8Ax8Z3gGPjO8Cx8R3g2PgOcGx8Bzg2vgMcG98Bjo3vAMfGd4Bj4zvAsfEd4Nj4DnBsfAc4Nr4DHBvfAY6N7wDHxneAY+M7wLHxHeDY+A5wbHwHODa+Axwb3wGOje8Ax8Z3gGPjO8Cx8R3g2PgOcGx8Bzg2vgMcG98Bjo3vAMfGd4Bj4zvAsfEd4Nj4DnBsfAc4Nr4DHBvfAY6N7wDHxneAY+M7wLHxHeDY+A5wbHwHODa+Axwb3wGOje8Ax8Z3gGPjO8Cx8R3g2PgOcGx8Bzg2vgMcG98Bjo3vAMfGd4Bj4zvAsfEd4Nj4DnBsfAc4Nr4DHBvfAY6N7wDHxneAY+M7wLHxHeDY+A5wbHwHODa+Axwb3wGOje8Ax8Z3gGPjO8Cx8R3g2PgOcGx8Bzg2vgMcG98Bjo3vAMfGd4Bj4zvAsfEd4Nj4DnBsfAc4Nr4DH5n8D/AHj8r5N17gAAAAASUVORK5CYII=');
+const shadowPlane = new THREE.Mesh(
+  new THREE.PlaneGeometry(3, 3),
+  new THREE.MeshBasicMaterial({ map: shadowTex, transparent: true, opacity: 0.2, depthWrite: false })
 );
-imgTexture.minFilter = THREE.LinearFilter;
+shadowPlane.rotation.x = -Math.PI / 2;
+shadowPlane.position.y = -1.2;
+scene.add(shadowPlane);
 
-const depthTexture = makeDepthTexture(400, 300);
+// ── PROCEDURAL HEADPHONES MESH ───────────────────
+// We use basic geometries to compose a modern headphone shape so we don't need to load a GLTF.
+const headphoneGroup = new THREE.Group();
+scene.add(headphoneGroup);
 
-const uniforms = {
-  uImage:    { value: imgTexture },
-  uDepth:    { value: depthTexture },
-  uMouse:    { value: new THREE.Vector2(0, 0) },
-  uStrength: { value: 0.035 },
-  uTime:     { value: 0 },
-};
-
-const mat = new THREE.ShaderMaterial({ vertexShader, fragmentShader, uniforms });
-scene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat));
-
-// ── MOUSE TRACKING ───────────────────────────────
-let targetMX = 0, targetMY = 0;
-let curMX = 0, curMY = 0;
-let needsRender = true;
-
-container.addEventListener('mousemove', (e) => {
-  const rect = container.getBoundingClientRect();
-  targetMX = ((e.clientX - rect.left) / rect.width)  * 2 - 1;
-  targetMY = -((e.clientY - rect.top)  / rect.height) * 2 + 1;
-  needsRender = true;
-});
-container.addEventListener('mouseleave', () => {
-  targetMX = 0; targetMY = 0;
-  needsRender = true;
+// The main material that changes color/finish
+const targetColor = new THREE.Color('#334155');
+const shellMaterial = new THREE.MeshStandardMaterial({
+  color: targetColor,
+  roughness: 0.7,
+  metalness: 0.1,
 });
 
-function lerp(a, b, t) { return a + (b - a) * t; }
+// Accent material (black padding)
+const padMaterial = new THREE.MeshStandardMaterial({
+  color: 0x111111, roughness: 0.9, metalness: 0.0
+});
+const metalMaterial = new THREE.MeshStandardMaterial({
+  color: 0xcccccc, roughness: 0.2, metalness: 0.8
+});
+
+// Earcups (outer shell)
+const cupGeo = new THREE.CylinderGeometry(0.8, 0.8, 0.4, 32);
+const leftCup = new THREE.Mesh(cupGeo, shellMaterial);
+leftCup.rotation.z = Math.PI / 2;
+leftCup.position.set(-1.1, 0, 0);
+headphoneGroup.add(leftCup);
+
+const rightCup = leftCup.clone();
+rightCup.position.set(1.1, 0, 0);
+headphoneGroup.add(rightCup);
+
+// Inner padding
+const padGeo = new THREE.TorusGeometry(0.6, 0.25, 16, 32);
+const leftPad = new THREE.Mesh(padGeo, padMaterial);
+leftPad.rotation.y = Math.PI / 2;
+leftPad.position.set(-0.85, 0, 0);
+headphoneGroup.add(leftPad);
+
+const rightPad = leftPad.clone();
+rightPad.position.set(0.85, 0, 0);
+headphoneGroup.add(rightPad);
+
+// Headband (Curve)
+const bandPath = new THREE.CatmullRomCurve3([
+  new THREE.Vector3(-1.1, 0.4, 0),
+  new THREE.Vector3(-1.1, 1.4, 0),
+  new THREE.Vector3(0, 1.8, 0),
+  new THREE.Vector3(1.1, 1.4, 0),
+  new THREE.Vector3(1.1, 0.4, 0)
+]);
+const bandGeo = new THREE.TubeGeometry(bandPath, 32, 0.15, 16, false);
+const band = new THREE.Mesh(bandGeo, shellMaterial);
+headphoneGroup.add(band);
+
+// Inner band padding
+const innerBandGeo = new THREE.TubeGeometry(bandPath, 32, 0.12, 16, false);
+const innerBand = new THREE.Mesh(innerBandGeo, padMaterial);
+innerBand.position.y = -0.04;
+headphoneGroup.add(innerBand);
+
+// Metal struts
+const strutGeo = new THREE.CylinderGeometry(0.04, 0.04, 0.6, 16);
+const leftStrut = new THREE.Mesh(strutGeo, metalMaterial);
+leftStrut.position.set(-1.1, 0.4, 0);
+headphoneGroup.add(leftStrut);
+const rightStrut = leftStrut.clone();
+rightStrut.position.set(1.1, 0.4, 0);
+headphoneGroup.add(rightStrut);
+
+
+// ── UI INTERACTION LOGIC ─────────────────────────
+// Smoothly interpolate material properties
+let targetRoughness = 0.7;
+let targetMetalness = 0.1;
+
+const colorBtns = document.querySelectorAll('.color-btn');
+colorBtns.forEach(btn => {
+  btn.addEventListener('click', (e) => {
+    colorBtns.forEach(b => b.classList.remove('active'));
+    e.target.classList.add('active');
+    targetColor.set(e.target.dataset.color);
+  });
+});
+
+const finishBtns = document.querySelectorAll('.finish-btn');
+finishBtns.forEach(btn => {
+  btn.addEventListener('click', (e) => {
+    finishBtns.forEach(b => b.classList.remove('active'));
+    e.target.classList.add('active');
+    targetRoughness = parseFloat(e.target.dataset.roughness);
+    targetMetalness = parseFloat(e.target.dataset.metal);
+  });
+});
+
+
+// ── RENDER LOOP ──────────────────────────────────
 const clock = new THREE.Clock();
 
 function animate() {
   requestAnimationFrame(animate);
+
   const dt = clock.getDelta();
-  uniforms.uTime.value += dt;
+  
+  // Idle rotation
+  headphoneGroup.rotation.y += 0.2 * dt;
 
-  curMX = lerp(curMX, targetMX, 0.07);
-  curMY = lerp(curMY, targetMY, 0.07);
-  uniforms.uMouse.value.set(curMX, curMY);
+  // Lerp material properties for smooth transitions
+  shellMaterial.color.lerp(targetColor, 0.1);
+  shellMaterial.roughness += (targetRoughness - shellMaterial.roughness) * 0.1;
+  shellMaterial.metalness += (targetMetalness - shellMaterial.metalness) * 0.1;
 
-  const moving = Math.abs(curMX - targetMX) > 0.001 || Math.abs(curMY - targetMY) > 0.001;
-  if (needsRender || moving) {
-    renderer.render(scene, camera);
-    needsRender = moving;
-  }
+  controls.update();
+  renderer.render(scene, camera);
 }
 animate();
+
+window.addEventListener('resize', () => {
+  W = container.clientWidth;
+  H = container.clientHeight;
+  camera.aspect = W / H;
+  camera.updateProjectionMatrix();
+  renderer.setSize(W, H);
+});
 </script>
 </body>
 </html>
