@@ -52,7 +52,10 @@
         "imports": {
             "react": "https://esm.sh/react@18.2.0",
             "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
-            "framer-motion": "https://esm.sh/framer-motion@11.0.8?external=react,react-dom"
+            "framer-motion": "https://esm.sh/framer-motion@11.0.8?external=react,react-dom",
+            "three": "https://esm.sh/three@0.160.0",
+            "@react-three/fiber": "https://esm.sh/@react-three/fiber@8.15.14?external=react,react-dom,three",
+            "@react-three/drei": "https://esm.sh/@react-three/drei@9.96.1?external=react,react-dom,three,@react-three/fiber"
         }
     }
     </script>
@@ -71,6 +74,43 @@
         import React, { useRef } from 'react';
         import { createRoot } from 'react-dom/client';
         import { motion, useScroll, useTransform, useSpring } from 'framer-motion';
+        import * as THREE from 'three';
+        import { Canvas, useFrame, useThree } from '@react-three/fiber';
+
+        const getMatcapTexture = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = 64; canvas.height = 64;
+            const ctx = canvas.getContext('2d');
+            const gradient = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+            gradient.addColorStop(0, '#ffffff'); 
+            gradient.addColorStop(0.5, '#22d3ee');
+            gradient.addColorStop(1, '#083344'); 
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, 64, 64);
+            return new THREE.CanvasTexture(canvas);
+        };
+        const defaultMatcap = getMatcapTexture();
+
+        const WebGLCursor = ({ scrollProgress }) => {
+            const meshRef = useRef();
+            const { viewport } = useThree();
+            
+            useFrame(() => {
+                if (meshRef.current) {
+                    const y = (0.5 - scrollProgress.get()) * viewport.height;
+                    meshRef.current.position.y += (y - meshRef.current.position.y) * 0.1;
+                    meshRef.current.rotation.x = scrollProgress.get() * Math.PI * 4;
+                    meshRef.current.rotation.y = scrollProgress.get() * Math.PI * 4;
+                }
+            });
+
+            return (
+                <mesh ref={meshRef} scale={1.2}>
+                    <octahedronGeometry args={[1, 0]} />
+                    <meshMatcapMaterial matcap={defaultMatcap} color="#06b6d4" />
+                </mesh>
+            );
+        };
 
         const TIMELINE_DATA = [
             {
@@ -133,17 +173,7 @@
             return (
                 <div ref={ref} className="relative w-full flex items-center justify-center min-h-[40vh]" style={{ perspective: '1200px' }}>
                     
-                    {/* The Center Node that lights up */}
-                    <div className="absolute left-1/2 -translate-x-1/2 flex items-center justify-center z-20">
-                        <motion.div 
-                            style={{ 
-                                scale: useTransform(smoothProgress, [0.8, 1], [0.5, 1]),
-                                backgroundColor: useTransform(smoothProgress, [0.8, 1], ['#262626', '#06b6d4']),
-                                boxShadow: useTransform(smoothProgress, [0.8, 1], ['0 0 0px rgba(6, 182, 212, 0)', '0 0 20px rgba(6, 182, 212, 0.8)'])
-                            }}
-                            className="w-4 h-4 rounded-full border-2 border-neutral-950 transition-colors"
-                        />
-                    </div>
+                    {/* Outer wrapper to contain the 3D perspective exclusively for this card */}
 
                     {/* The Card Container */}
                     <motion.div 
@@ -178,53 +208,56 @@
                 offset: ["start center", "end center"]
             });
 
+            // Also track global scroll for the 3D cursor
+            const { scrollYProgress: globalScroll } = useScroll();
+
             const lineHeight = useTransform(scrollYProgress, [0, 1], ["0%", "100%"]);
 
             return (
-                <div className="min-h-screen bg-neutral-950 relative overflow-hidden">
+                <div className="min-h-screen bg-neutral-950 relative">
                     
-                    {/* Hero Header */}
-                    <div className="h-[60vh] flex flex-col items-center justify-center relative z-10">
-                        <motion.h1 
-                            initial={{ opacity: 0, y: 30 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ duration: 1, ease: "easeOut" }}
-                            className="text-5xl md:text-7xl font-black tracking-tighter mb-4 text-center"
-                        >
-                            The Journey
-                        </motion.h1>
-                        <motion.p 
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            transition={{ duration: 1, delay: 0.3 }}
-                            className="text-neutral-500 uppercase tracking-[0.3em] text-sm"
-                        >
-                            Scroll to explore history
-                        </motion.p>
+                    {/* Fixed 3D Canvas Background */}
+                    <div className="fixed inset-0 z-0 pointer-events-none">
+                        <Canvas camera={{ position: [0, 0, 10], fov: 45 }}>
+                            <WebGLCursor scrollProgress={globalScroll} />
+                        </Canvas>
                     </div>
 
-                    {/* Timeline Container */}
-                    <div ref={containerRef} className="max-w-6xl mx-auto relative py-20 px-4">
+                    <div className="relative z-10 w-full overflow-hidden">
+                        {/* Hero Header */}
+                        <div className="h-[60vh] flex flex-col items-center justify-center relative z-10">
+                            <motion.h1 
+                                initial={{ opacity: 0, y: 30 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ duration: 1, ease: "easeOut" }}
+                                className="text-5xl md:text-7xl font-black tracking-tighter mb-4 text-center mix-blend-screen text-white bg-neutral-950/80 px-8 py-4 rounded-3xl backdrop-blur-md inline-block"
+                            >
+                                The Journey
+                            </motion.h1>
+                        </div>
+
+                        {/* Timeline Container */}
+                        <div ref={containerRef} className="max-w-6xl mx-auto relative py-20 px-4">
+                            
+                            {/* The background track line */}
+                            <div className="absolute left-1/2 top-0 bottom-0 w-1 -translate-x-1/2 bg-white/5 rounded-full overflow-hidden z-0">
+                                {/* The glowing foreground fill line tied to global scroll */}
+                                <motion.div 
+                                    style={{ height: lineHeight }}
+                                    className="w-full bg-gradient-to-b from-brand-500/50 via-brand-400 to-brand-500/50 rounded-full"
+                                />
+                            </div>
+
+                            <div className="relative z-20">
+                                {TIMELINE_DATA.map((item, i) => (
+                                    <TimelineItem key={i} item={item} index={i} />
+                                ))}
+                            </div>
+                        </div>
                         
-                        {/* The background track line */}
-                        <div className="absolute left-1/2 top-0 bottom-0 w-1 -translate-x-1/2 bg-white/5 rounded-full overflow-hidden z-0">
-                            {/* The glowing foreground fill line tied to global scroll */}
-                            <motion.div 
-                                style={{ height: lineHeight }}
-                                className="w-full bg-gradient-to-b from-brand-500 via-brand-400 to-brand-500 rounded-full shadow-[0_0_15px_rgba(34,211,238,0.5)]"
-                            />
-                        </div>
-
-                        {/* Rendering the items */}
-                        <div className="relative z-10">
-                            {TIMELINE_DATA.map((item, i) => (
-                                <TimelineItem key={i} item={item} index={i} />
-                            ))}
-                        </div>
+                        {/* Padding at bottom */}
+                        <div className="h-[40vh] w-full"></div>
                     </div>
-                    
-                    {/* Padding at bottom */}
-                    <div className="h-[40vh] w-full"></div>
                 </div>
             );
         };

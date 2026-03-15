@@ -53,7 +53,10 @@
         "imports": {
             "react": "https://esm.sh/react@18.2.0",
             "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
-            "framer-motion": "https://esm.sh/framer-motion@11.0.8?external=react,react-dom"
+            "framer-motion": "https://esm.sh/framer-motion@11.0.8?external=react,react-dom",
+            "three": "https://esm.sh/three@0.160.0",
+            "@react-three/fiber": "https://esm.sh/@react-three/fiber@8.15.14?external=react,react-dom,three",
+            "@react-three/drei": "https://esm.sh/@react-three/drei@9.96.1?external=react,react-dom,three,@react-three/fiber"
         }
     }
     </script>
@@ -70,122 +73,92 @@
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
     <script type="text/babel" data-type="module">
-        import React, { useState, useEffect } from 'react';
+        import React, { useState, useEffect, useRef, useMemo } from 'react';
         import { createRoot } from 'react-dom/client';
         import { motion } from 'framer-motion';
+        import * as THREE from 'three';
+        import { Canvas, useFrame } from '@react-three/fiber';
 
-        const TypewriterLine = ({ text, delay = 0, onComplete }) => {
-            const [displayedText, setDisplayedText] = useState('');
-            
-            useEffect(() => {
-                let timeout;
-                let currentIndex = 0;
+        const SyntaxTree = ({ isHovered }) => {
+            const groupRef = useRef();
+            const pointsRef = useRef();
+            const linesRef = useRef();
+
+            // Create a deterministic random tree geometry once
+            const [pointsGeo, linesGeo] = useMemo(() => {
+                const p = [];
+                const l = [];
+                const nodeCount = 50;
                 
-                const typeChar = () => {
-                    if (currentIndex <= text.length) {
-                        setDisplayedText(text.slice(0, currentIndex));
-                        currentIndex++;
-                        timeout = setTimeout(typeChar, Math.random() * 30 + 10);
-                    } else if (onComplete) {
-                        onComplete();
+                // Generate random nodes in a structured shape
+                for (let i=0; i < nodeCount; i++) {
+                    p.push(
+                        (Math.random() - 0.5) * 8, 
+                        (Math.random() - 0.5) * 6, 
+                        (Math.random() - 0.5) * 4
+                    );
+                }
+                
+                // Connect nearby nodes
+                for (let i=0; i < nodeCount; i++) {
+                    for (let j=i+1; j < nodeCount; j++) {
+                        const dx = p[i*3] - p[j*3];
+                        const dy = p[i*3+1] - p[j*3+1];
+                        const dz = p[i*3+2] - p[j*3+2];
+                        const distSq = dx*dx + dy*dy + dz*dz;
+                        if (distSq < 4) { // Threshold for connection
+                            l.push(p[i*3], p[i*3+1], p[i*3+2]);
+                            l.push(p[j*3], p[j*3+1], p[j*3+2]);
+                        }
                     }
-                };
-
-                const startTimeout = setTimeout(typeChar, delay * 1000);
-                return () => {
-                    clearTimeout(startTimeout);
-                    clearTimeout(timeout);
-                };
-            }, [text, delay, onComplete]);
-
-            // Simple pseudo-syntax highlighting parser
-            const renderHighlightedText = (content) => {
-                if (content.startsWith('//')) {
-                    return <span className="syntax-comment">{content}</span>;
-                }
-                if (content.startsWith('$')) {
-                    return <span><span className="syntax-operator">$</span> {content.substring(2)}</span>;
                 }
                 
-                // Extremely basic parsing for visual effect
-                return content.split(/(\s+|=|\(|\)|'|\[|\])/).map((part, i) => {
-                    if (['const', 'import', 'from', 'export', 'default', 'return', 'async', 'await'].includes(part)) return <span key={i} className="syntax-keyword">{part}</span>;
-                    if (['=', '=>', '+', '-', '*', '/'].includes(part)) return <span key={i} className="syntax-operator">{part}</span>;
-                    if (part.startsWith("'") && part.endsWith("'")) return <span key={i} className="syntax-string">{part}</span>;
-                    if (['fetch', 'render', 'connect', 'deploy'].includes(part)) return <span key={i} className="syntax-function">{part}</span>;
-                    return <span key={i} className="syntax-variable">{part}</span>;
-                });
-            };
+                const geoPoints = new THREE.BufferGeometry();
+                geoPoints.setAttribute('position', new THREE.Float32BufferAttribute(p, 3));
+                
+                const geoLines = new THREE.BufferGeometry();
+                geoLines.setAttribute('position', new THREE.Float32BufferAttribute(l, 3));
+                
+                return [geoPoints, geoLines];
+            }, []);
 
-            return (
-                <div className="font-mono text-[13px] md:text-sm leading-relaxed tracking-tight whitespace-pre">
-                    {renderHighlightedText(displayedText)}
-                </div>
-            );
-        };
+            const currentSpeed = useRef(0.002);
 
-        const CodeSequence = ({ isVisible }) => {
-            const [step, setStep] = useState(0);
+            useFrame((state, delta) => {
+                const targetSpeed = isHovered ? 0.02 : 0.002;
+                if (groupRef.current) {
+                    // Smoothly interpolate rotation speed
+                    currentSpeed.current += (targetSpeed - currentSpeed.current) * delta * 5;
+                    groupRef.current.rotation.y += currentSpeed.current;
+                    groupRef.current.rotation.x += currentSpeed.current * 0.5;
 
-            useEffect(() => {
-                if (!isVisible) {
-                    setStep(0); // Reset when out of view
-                } else if (step === 0) {
-                    setStep(1); // Start sequence
+                    // Pulse brightness
+                    const pulse = isHovered ? Math.sin(state.clock.elapsedTime * 6) * 0.5 + 0.5 : 0;
+                    if (pointsRef.current) {
+                        pointsRef.current.material.size = isHovered ? 0.15 + pulse * 0.15 : 0.08;
+                        pointsRef.current.material.opacity = isHovered ? 0.9 : 0.4;
+                    }
+                    if (linesRef.current) {
+                        linesRef.current.material.opacity = isHovered ? 0.5 : 0.15;
+                    }
                 }
-            }, [isVisible]);
-
-            const lines = [
-                { text: "// Initialize deployment sequence", delay: 0.5 },
-                { text: "$ npx construct-infrastructure --prod", delay: 0.2 },
-                { text: "Building optimized assets...", delay: 0.8 },
-                { text: "✓ Generated static chunks (12ms)", delay: 0.4 },
-                { text: "✓ Compiled Edge functions (4ms)", delay: 0.2 },
-                { text: " ", delay: 0 },
-                { text: "const serverless = async () => {", delay: 0.5 },
-                { text: "  const db = await connect('global-edge-db');", delay: 0.2 },
-                { text: "  const res = await db.fetch('users');", delay: 0.3 },
-                { text: "  return res.json();", delay: 0.2 },
-                { text: "}", delay: 0.1 },
-                { text: " ", delay: 0 },
-                { text: "$ deploy --alias production", delay: 0.5 },
-                { text: "Deploying to 35 global edge regions...", delay: 0.4 },
-                { text: "✓ Deployment successful! URL: https://example.com", delay: 0.8 }
-            ];
+            });
 
             return (
-                <div className="p-5 h-full flex flex-col gap-1 overflow-hidden">
-                    {lines.map((line, index) => {
-                        // Only render if we've reached this step in the sequence
-                        if (step <= index) return null;
-                        
-                        return (
-                            <TypewriterLine 
-                                key={index} 
-                                text={line.text} 
-                                delay={line.delay}
-                                onComplete={() => {
-                                    if (step === index + 1 && step < lines.length) {
-                                        setStep(step + 1);
-                                    }
-                                }}
-                            />
-                        );
-                    })}
-                    {/* Blinking Cursor */}
-                    {step > 0 && step <= lines.length && (
-                        <motion.div 
-                            animate={{ opacity: [1, 0, 1] }} 
-                            transition={{ repeat: Infinity, duration: 0.8 }}
-                            className="w-2 h-4 bg-white/70 mt-1 inline-block"
-                        />
-                    )}
-                </div>
+                <group ref={groupRef}>
+                    <points ref={pointsRef} geometry={pointsGeo}>
+                        <pointsMaterial color="#00ffcc" size={0.08} sizeAttenuation={true} transparent opacity={0.4} blending={THREE.AdditiveBlending} depthWrite={false} />
+                    </points>
+                    <lineSegments ref={linesRef} geometry={linesGeo}>
+                        <lineBasicMaterial color="#00ffcc" transparent opacity={0.15} blending={THREE.AdditiveBlending} depthWrite={false} />
+                    </lineSegments>
+                </group>
             );
         };
 
         const FoldOutTerminal = () => {
             const [isInView, setIsInView] = useState(false);
+            const [isHovered, setIsHovered] = useState(false);
 
             return (
                 <div style={{ perspective: '1200px' }} className="w-full max-w-4xl mx-auto py-24 px-4 flex justify-center">
@@ -196,6 +169,8 @@
                         viewport={{ once: false, amount: 0.4 }} // Trigger when 40% visible
                         onViewportEnter={() => setIsInView(true)}
                         onViewportLeave={() => setIsInView(false)}
+                        onMouseEnter={() => setIsHovered(true)}
+                        onMouseLeave={() => setIsHovered(false)}
                         transition={{ 
                             type: "spring", 
                             stiffness: 100, 
@@ -229,12 +204,17 @@
                         </div>
 
                         {/* Terminal Body */}
-                        <div className="flex-1 bg-black/50 relative">
+                        <div className="flex-1 bg-black/50 relative overflow-hidden">
                             {/* Very faint background grid for developer aesthetic */}
                             <div className="absolute inset-0 z-0 opacity-10" style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px)', backgroundSize: '20px 20px' }}></div>
                             
-                            <div className="relative z-10 w-full h-full">
-                                <CodeSequence isVisible={isInView} />
+                            <div className="absolute inset-0 z-10 w-full h-full cursor-crosshair">
+                                {/* Only mount the canvas when terminal unfolds to save GPU overhead entirely */}
+                                {isInView && (
+                                    <Canvas camera={{ position: [0, 0, 8], fov: 45 }}>
+                                        <SyntaxTree isHovered={isHovered} />
+                                    </Canvas>
+                                )}
                             </div>
                         </div>
                     </motion.div>
