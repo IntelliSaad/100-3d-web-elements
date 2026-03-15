@@ -46,38 +46,50 @@
         import React, { useRef, Suspense } from 'react';
         import { createRoot } from 'react-dom/client';
         import { Canvas, useFrame } from '@react-three/fiber';
-        import { MeshDistortMaterial, Float, Environment, Text } from '@react-three/drei';
+        import { MeshTransmissionMaterial, Float, Environment, Text } from '@react-three/drei';
 
         const Blob = () => {
             const materialRef = useRef(null);
+            const groupRef = useRef(null);
 
-            // Slightly animate the speed over time for a more organic feel
-            useFrame((state) => {
-                if (materialRef.current) {
-                    // Very slow subtle oscillation of the distortion intensity
-                    materialRef.current.distort = 0.4 + Math.sin(state.clock.elapsedTime * 0.5) * 0.1;
+            // Animate rotation towards mouse pointer
+            useFrame((state, delta) => {
+                if (groupRef.current) {
+                    // Normalized pointer coordinates (-1 to 1)
+                    const targetX = state.pointer.x * Math.PI * 0.25;
+                    const targetY = state.pointer.y * Math.PI * 0.25;
+                    
+                    // Smooth lerp rotation toward cursor
+                    groupRef.current.rotation.y += (targetX - groupRef.current.rotation.y) * delta * 5;
+                    groupRef.current.rotation.x += (-targetY - groupRef.current.rotation.x) * delta * 5;
+                    
+                    // Slow baseline ambient rotation
+                    groupRef.current.rotation.z += delta * 0.15;
                 }
             });
 
             return (
                 <Float speed={1.5} rotationIntensity={1.5} floatIntensity={2}>
-                    <mesh scale={2.5}>
-                        {/* 
-                            PERFORMANCE CONSTRAINT APPLIED:
-                            Super low-poly sphere (32 radial segments) keeps the vertex 
-                            transformation cost extremely low before smoothing. 
-                        */}
-                        <sphereGeometry args={[1, 32, 32]} />
-                        <MeshDistortMaterial
-                            ref={materialRef}
-                            color="#310e68" // Deep violet base
-                            emissive="#0f0524" // Dark core
-                            roughness={0.2} // Glossy, but slightly matte
-                            metalness={0.8} // Metallic for good light reaction
-                            distort={0.4} // High default distortion
-                            speed={2} // Moderate undulation speed
-                        />
-                    </mesh>
+                    <group ref={groupRef}>
+                        <mesh scale={2.5}>
+                            <sphereGeometry args={[1, 64, 64]} /> {/* Increased detail for better glass refraction */}
+                            <MeshTransmissionMaterial
+                                ref={materialRef}
+                                transmission={1.0}
+                                roughness={0.1}
+                                ior={1.5}
+                                thickness={2.5}
+                                chromaticAberration={0.05}
+                                distortion={0.8}
+                                distortionScale={0.4}
+                                temporalDistortion={0.15} /* This creates the morphing liquid surface */
+                                resolution={128} /* Capped for performance per requirements */
+                                color="#ffffff"
+                                attenuationColor="#8b5cf6"
+                                attenuationDistance={5}
+                            />
+                        </mesh>
+                    </group>
                 </Float>
             );
         }
@@ -89,11 +101,12 @@
                     
                     {/* Basic, cheap lighting strategy */}
                     <ambientLight intensity={0.5} />
-                    {/* Main highlight light from top right */}
                     <directionalLight position={[10, 10, 5]} intensity={2} color="#8b5cf6" />
-                    {/* Fill light from bottom left to reveal volume */}
                     <directionalLight position={[-10, -10, -5]} intensity={1} color="#0ea5e9" />
                     
+                    {/* Realistic reflection map for the glass */}
+                    <Environment preset="city" />
+
                     <Suspense fallback={null}>
                         <Blob />
                     </Suspense>
