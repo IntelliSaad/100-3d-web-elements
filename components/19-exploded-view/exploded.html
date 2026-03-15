@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tactile 3D Pricing Toggle</title>
+    <title>3D Interactive Procedural DNA</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -11,8 +11,8 @@
             theme: {
                 extend: {
                     colors: {
-                        neutral: {
-                            950: '#0a0a0a',
+                        slate: {
+                            950: '#020617',
                         }
                     }
                 }
@@ -20,28 +20,26 @@
         }
     </script>
     <style>
-        body { margin: 0; background-color: #0a0a0a; color: white; display: flex; align-items: center; justify-content: center; height: 100vh; overflow: hidden; font-family: 'Inter', sans-serif; }
+        body { margin: 0; background-color: #020617; color: white; overflow: hidden; font-family: 'Inter', sans-serif; }
+        #root { width: 100vw; height: 100vh; position: relative; }
     </style>
 </head>
 <body>
     <div id="root"></div>
 
-    <!-- React, ReactDOM, and Framer Motion via ESM -->
+    <!-- Imports -->
     <script type="importmap">
     {
         "imports": {
             "react": "https://esm.sh/react@18.2.0",
             "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
-            "framer-motion": "https://esm.sh/framer-motion@11.0.8?external=react,react-dom",
             "three": "https://esm.sh/three@0.160.0",
             "@react-three/fiber": "https://esm.sh/@react-three/fiber@8.15.14?external=react,react-dom,three"
         }
     }
     </script>
 
-    <!-- Babel for JSX -->
     <script>
-        // Suppress Babel / Tailwind CDN warnings for clean devtools
         const origWarn = console.warn;
         console.warn = function(...args) {
             if (args[0] && typeof args[0] === 'string' && (args[0].includes('in-browser Babel transformer') || args[0].includes('cdn.tailwindcss.com should not be used in production'))) return;
@@ -51,113 +49,187 @@
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
     <script type="text/babel" data-type="module">
-        import React, { useRef, useState, useEffect } from 'react';
+        import React, { useRef, useMemo, useEffect, useState } from 'react';
         import { createRoot } from 'react-dom/client';
-        import { Canvas, useThree } from '@react-three/fiber';
-        import { useSpring } from 'framer-motion';
+        import * as THREE from 'three';
+        import { Canvas, useFrame, useThree } from '@react-three/fiber';
 
-        const Toggle3D = ({ isAnnual, onToggle }) => {
+        const PARTICLE_COUNT = 300;
+        const STRAND_RADIUS = 2.5;
+        const HEIGHT_SPREAD = 0.08;
+        const FREQUENCY = 0.5;
+
+        // --- Core DNA Structure ---
+        const DNAHelix = () => {
+            const instancedMeshRef = useRef();
+            const linesRef = useRef();
+            const groupRef = useRef();
             const { invalidate } = useThree();
-            const sphereRef = useRef();
 
-            // Setup Framer Motion spring physics for the toggle slide
-            // Left position: -1.2, Right position: 1.2
-            const targetX = isAnnual ? 1.2 : -1.2;
-            const springX = useSpring(targetX, { stiffness: 500, damping: 30, mass: 1 });
+            // 1. Procedural Generation Arrays
+            const { matrices, colors, linePositions, lineColors } = useMemo(() => {
+                const tempObject = new THREE.Object3D();
+                const tempColor = new THREE.Color();
+                
+                // For InstancedMesh (Both strands)
+                const matrices = new Float32Array(PARTICLE_COUNT * 2 * 16);
+                const colors = new Float32Array(PARTICLE_COUNT * 2 * 3);
+                
+                // For LineSegments (Rungs connecting strands)
+                const linePositions = [];
+                const lineColors = [];
 
-            // Apply new target when state changes
-            useEffect(() => {
-                springX.set(targetX);
-            }, [targetX, springX]);
+                const color1 = new THREE.Color("#06b6d4"); // Cyan
+                const color2 = new THREE.Color("#d946ef"); // Magenta
 
-            // Bind the spring directly to the Threejs mesh position and force canvas renders ONLY while moving
-            useEffect(() => {
-                const unsub = springX.on('change', (v) => {
-                    if (sphereRef.current) {
-                        sphereRef.current.position.x = v;
+                for (let i = 0; i < PARTICLE_COUNT; i++) {
+                    const t = i * FREQUENCY;
+                    const y = (i - PARTICLE_COUNT / 2) * HEIGHT_SPREAD;
+                    
+                    // Strand 1 (Cyan)
+                    const x1 = Math.cos(t) * STRAND_RADIUS;
+                    const z1 = Math.sin(t) * STRAND_RADIUS;
+                    
+                    tempObject.position.set(x1, y, z1);
+                    tempObject.updateMatrix();
+                    tempObject.matrix.toArray(matrices, i * 16);
+                    tempColor.copy(color1).toArray(colors, i * 3);
+
+                    // Strand 2 (Magenta) - Offset by Pi
+                    const x2 = Math.cos(t + Math.PI) * STRAND_RADIUS;
+                    const z2 = Math.sin(t + Math.PI) * STRAND_RADIUS;
+                    
+                    tempObject.position.set(x2, y, z2);
+                    tempObject.updateMatrix();
+                    tempObject.matrix.toArray(matrices, (i + PARTICLE_COUNT) * 16);
+                    tempColor.copy(color2).toArray(colors, (i + PARTICLE_COUNT) * 3);
+
+                    // Create Base Pairs (Rungs between strands every few nodes)
+                    if (i % 3 === 0) {
+                        linePositions.push(x1, y, z1); // Start of line
+                        linePositions.push(x2, y, z2); // End of line
+                        
+                        // Gradient line colors
+                        lineColors.push(color1.r, color1.g, color1.b);
+                        lineColors.push(color2.r, color2.g, color2.b);
                     }
-                    // Crucial for performance: invalidate the canvas manually while the animation is running
-                    invalidate();
-                });
-                return () => unsub();
-            }, [springX, invalidate]);
+                }
+
+                return { 
+                    matrices, 
+                    colors, 
+                    linePositions: new Float32Array(linePositions), 
+                    lineColors: new Float32Array(lineColors) 
+                };
+            }, []);
+
+            // 2. Hydrate InstancedMesh on mount
+            useEffect(() => {
+                if (instancedMeshRef.current) {
+                    for (let i = 0; i < PARTICLE_COUNT * 2; i++) {
+                        const matrix = new THREE.Matrix4().fromArray(matrices, i * 16);
+                        instancedMeshRef.current.setMatrixAt(i, matrix);
+                    }
+                    instancedMeshRef.current.instanceMatrix.needsUpdate = true;
+                }
+            }, [matrices]);
+
+            // 3. Continuous gentle rotation
+            useFrame((state, delta) => {
+                if (groupRef.current) {
+                    groupRef.current.rotation.y += delta * 0.15;
+                    groupRef.current.position.y = Math.sin(state.clock.elapsedTime * 0.5) * 0.5;
+                    invalidate(); // Keep frameloop running for continuous animation
+                }
+            });
 
             return (
-                <group 
-                    onClick={onToggle}
-                    onPointerEnter={() => { document.body.style.cursor = 'pointer'; }}
-                    onPointerLeave={() => { document.body.style.cursor = 'default'; }}
-                >
-                    {/* The Recessed Track */}
-                    <mesh rotation={[0, 0, Math.PI / 2]} receiveShadow>
-                        {/* radius, length, capSegments, radialSegments */}
-                        <capsuleGeometry args={[0.8, 2.4, 16, 32]} />
-                        <meshStandardMaterial color="#1a1a1a" roughness={0.9} />
-                    </mesh>
+                <group ref={groupRef}>
+                    {/* INSTANCED MESH: Draws all 600 DNA atoms in a SINGLE GPU Draw Call */}
+                    <instancedMesh ref={instancedMeshRef} args={[null, null, PARTICLE_COUNT * 2]}>
+                        <sphereGeometry args={[0.08, 8, 8]}>
+                            <instancedBufferAttribute attach="attributes-color" args={[colors, 3]} />
+                        </sphereGeometry>
+                        <meshBasicMaterial vertexColors toneMapped={false} />
+                    </instancedMesh>
 
-                    {/* The Physical Switch */}
-                    <mesh ref={sphereRef} position={[-1.2, 0, 0.4]} castShadow>
-                        {/* radius, widthSegments, heightSegments (kept low for performance) */}
-                        <sphereGeometry args={[0.92, 32, 32]} />
-                        <meshStandardMaterial 
-                            color={isAnnual ? "#3b82f6" : "#f1f5f9"} 
-                            roughness={0.15} 
-                            metalness={0.1}
-                        />
-                    </mesh>
+                    {/* LINE SEGMENTS: Draws all base pair rungs natively */}
+                    <lineSegments ref={linesRef}>
+                        <bufferGeometry>
+                            <bufferAttribute attach="attributes-position" count={linePositions.length / 3} array={linePositions} itemSize={3} />
+                            <bufferAttribute attach="attributes-color" count={lineColors.length / 3} array={lineColors} itemSize={3} />
+                        </bufferGeometry>
+                        <lineBasicMaterial vertexColors toneMapped={false} transparent opacity={0.3} />
+                    </lineSegments>
                 </group>
             );
         };
 
-        const PricingPanel = () => {
-            const [isAnnual, setIsAnnual] = useState(false);
-            
-            const handleToggle = () => setIsAnnual(!isAnnual);
+        // --- Camera & Interaction ---
+        const Scene = () => {
+            const { camera, pointer, invalidate } = useThree();
+            const groupRef = useRef();
+
+            // Hardware-accelerated Parallax bound to mouse
+            useFrame(() => {
+                // Lerp camera towards mouse coordinates for smooth lag effect
+                const targetX = (pointer.x * 2);
+                const targetY = (pointer.y * 2);
+                
+                camera.position.x += (targetX - camera.position.x) * 0.05;
+                camera.position.y += (targetY - camera.position.y) * 0.05;
+                camera.lookAt(0, 0, 0);
+            });
 
             return (
-                <div className="flex flex-col items-center p-10 bg-neutral-900/50 backdrop-blur-xl rounded-3xl border border-neutral-800 shadow-2xl">
-                    <div className="text-center mb-10">
-                        <h2 className="text-3xl font-bold text-white mb-3">Select your billing</h2>
-                        <p className="text-neutral-400">Save up to 20% by paying annually.</p>
+                <group ref={groupRef}>
+                    <DNAHelix />
+                </group>
+            );
+        };
+
+        const App = () => {
+            return (
+                <div className="w-full h-screen bg-slate-950 flex flex-col items-center justify-center relative touch-none">
+                    
+                    {/* Top UI HUD Overlay */}
+                    <div className="absolute top-8 left-8 pointer-events-none z-10">
+                        <h1 className="text-white tracking-[0.2em] text-sm uppercase font-black mb-1">
+                            Gen-Seq <span className="text-cyan-400">v9.2</span>
+                        </h1>
+                        <p className="text-slate-500 font-mono text-[10px] tracking-widest">PROCEDURAL BIO-COMPUTATION</p>
                     </div>
 
-                    <div className="flex items-center gap-6 mb-8">
-                        <span 
-                            onClick={() => setIsAnnual(false)}
-                            className={`text-lg transition-colors font-medium cursor-pointer ${!isAnnual ? 'text-white' : 'text-neutral-500 hover:text-neutral-300'}`}
-                        >
-                            Monthly
-                        </span>
-
-                        {/* Highly Optimized WebGL Container */}
-                        <div className="w-[140px] h-[70px]">
-                            <Canvas frameloop="demand" camera={{ position: [0, 0, 6], fov: 40 }} shadows dpr={[1, 1.5]}>
-                                <ambientLight intensity={0.6} />
-                                {/* Main light positioned directly above the switch for realistic track shadowing */}
-                                <pointLight position={[0, 4, 3]} intensity={25} color="#ffffff" castShadow shadow-mapSize={[512, 512]} />
-                                
-                                <Toggle3D isAnnual={isAnnual} onToggle={handleToggle} />
-                            </Canvas>
+                    <div className="absolute bottom-8 right-8 pointer-events-none text-right">
+                        <div className="flex items-center justify-end gap-3 mb-2">
+                            <span className="relative flex h-2 w-2">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-magenta-400 opacity-75"></span>
+                              <span className="relative inline-flex rounded-full h-2 w-2 bg-fuchsia-500"></span>
+                            </span>
+                            <span className="text-slate-400 font-mono text-[10px] tracking-widest uppercase">System Online</span>
                         </div>
+                        <p className="text-slate-600 font-mono text-[9px] tracking-widest">INSTANCED_MESH // ZERO_MODELS</p>
+                    </div>
 
-                        <span 
-                            onClick={() => setIsAnnual(true)}
-                            className={`text-lg transition-colors font-medium cursor-pointer ${isAnnual ? 'text-white' : 'text-neutral-500 hover:text-neutral-300'}`}
+                    {/* Highly Optimized R3F Scene */}
+                    <div className="w-full h-full cursor-crosshair">
+                        <Canvas 
+                            dpr={Math.min(window.devicePixelRatio, 1.5)} // Caps performance for integrated graphics
+                            camera={{ position: [0, 0, 15], fov: 45 }}
+                            gl={{ antialias: true, alpha: false }} // alpha false prevents heavy clear
                         >
-                            Annually
-                            {isAnnual && (
-                                <span className="absolute ml-2 mt-0.5 px-2 py-0.5 text-[10px] font-bold tracking-widest text-blue-900 bg-blue-400 rounded-full uppercase">
-                                    Saved 20%
-                                </span>
-                            )}
-                        </span>
+                            <color attach="background" args={['#020617']} />
+                            
+                            {/* Zero lights needed! All materials are meshBasicMaterial/lineBasicMaterial with vertexColors */}
+                            <Scene />
+                        </Canvas>
                     </div>
                 </div>
             );
         };
 
         const root = createRoot(document.getElementById('root'));
-        root.render(<PricingPanel />);
+        root.render(<App />);
     </script>
 </body>
 </html>
