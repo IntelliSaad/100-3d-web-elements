@@ -126,7 +126,7 @@ const W = container.clientWidth || window.innerWidth;
 const H = container.clientHeight || window.innerHeight;
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1)); // Clamped to 1 for high performance on integrated GPUs
 renderer.setSize(W, H);
 renderer.shadowMap.enabled = false; // shadows baked into geometry/material
 renderer.setClearColor(0x050505);
@@ -153,12 +153,14 @@ scene.add(rimLight);
 // BUILD WATCH PARTS PROGRAMMATICALLY
 // Each part = {mesh, originY, restY, explodedY, label}
 // ────────────────────────────────────────────
-const GOLD   = new THREE.MeshStandardMaterial({ color:0xd4af37, metalness:0.9, roughness:0.25 });
-const SILVER = new THREE.MeshStandardMaterial({ color:0xc0c8d6, metalness:0.85, roughness:0.2 });
-const DARK   = new THREE.MeshStandardMaterial({ color:0x1a1a2e, metalness:0.3, roughness:0.5 });
-const BLUE   = new THREE.MeshStandardMaterial({ color:0x1e3a5f, metalness:0.1, roughness:0.3 });
-const GLASS  = new THREE.MeshPhysicalMaterial({ color:0xffffff, metalness:0, roughness:0, transmission:0.96, thickness:0.2, transparent:true, opacity:0.35 });
-const RUBY   = new THREE.MeshStandardMaterial({ color:0xcc2244, metalness:0.5, roughness:0.3, emissive:0x550011 });
+// PERFORMANCE: Using MeshPhongMaterial instead of MeshStandardMaterial prevents the 'discolored' pitch black look when an Environment map is absent, and runs much faster.
+const GOLD   = new THREE.MeshPhongMaterial({ color:0xd4af37, specular:0xddaa55, shininess: 80 });
+const SILVER = new THREE.MeshPhongMaterial({ color:0xc0c8d6, specular:0xeeeeee, shininess: 80 });
+const DARK   = new THREE.MeshPhongMaterial({ color:0x1a1a2e, specular:0x333333, shininess: 30 });
+const BLUE   = new THREE.MeshPhongMaterial({ color:0x1e3a5f, specular:0x555555, shininess: 50 });
+// REMOVED heavy MeshPhysicalMaterial transmission which was crashing laptops
+const GLASS  = new THREE.MeshPhongMaterial({ color:0xffffff, specular:0xffffff, shininess: 100, transparent:true, opacity:0.15 }); 
+const RUBY   = new THREE.MeshPhongMaterial({ color:0xcc2244, specular:0xff5555, shininess: 90 });
 
 function makeRing(outerR, innerR, h, mat, y=0) {
   // CylinderGeometry subtracted via two — approximate with ExtrudeGeometry shape
@@ -174,14 +176,14 @@ function makeRing(outerR, innerR, h, mat, y=0) {
   return m;
 }
 
-function makeCyl(r, h, mat, y=0, segs=48) {
+function makeCyl(r, h, mat, y=0, segs=32) { // Lowered segments for performance
   const m = new THREE.Mesh(new THREE.CylinderGeometry(r,r,h,segs,1), mat.clone());
   m.position.y = y;
   return m;
 }
 
 function makeTorus(R, r, mat, y=0) {
-  const m = new THREE.Mesh(new THREE.TorusGeometry(R,r,12,40), mat.clone());
+  const m = new THREE.Mesh(new THREE.TorusGeometry(R,r,8,24), mat.clone()); // Lowered subdivisions
   m.rotation.x = Math.PI/2;
   m.position.y = y;
   return m;

@@ -208,6 +208,8 @@
   const stage = document.getElementById('stage');
   const dotsContainer = document.getElementById('dots');
   const counter = document.getElementById('counter');
+  
+  let absoluteIndex = 0;
   let current = 0;
 
   // Build cards
@@ -235,18 +237,15 @@
     return dot;
   });
 
-  function updateCarousel(animated = true) {
+  function updateCarousel() {
     const angleStep = 360 / N;
 
     cards.forEach((card, i) => {
-      const angle = angleStep * (i - current);
-      const radians = angle * Math.PI / 180;
-
-      // Cylindrical: rotate Y and push to radius
-      const rotateY = angle;
+      // The cards reside at fixed angles on the cylinder
+      const angle = angleStep * i;
       const translateZ = RADIUS;
 
-      // Relative angle to determine front-ness
+      // Distance from the currently active card for scaling/blurring
       let relAngle = ((i - current) % N + N) % N;
       if (relAngle > N/2) relAngle -= N;
       const absRel = Math.abs(relAngle);
@@ -255,10 +254,10 @@
       const frontness = 1 - (absRel / (N/2));
       const scale = 0.55 + frontness * 0.45;
       const blur = (1 - frontness) * 3;
-      const opacity = 0.3 + frontness * 0.7;
+      const opacity = Math.max(0, 0.3 + frontness * 0.7);
       const zIndex = Math.round(frontness * 10);
 
-      card.style.transform = `rotateY(${rotateY}deg) translateZ(${translateZ}px) scale(${scale})`;
+      card.style.transform = `rotateY(${angle}deg) translateZ(${translateZ}px) scale(${scale})`;
       card.style.filter = blur > 0 ? `blur(${blur.toFixed(1)}px)` : 'none';
       card.style.opacity = opacity;
       card.style.zIndex = zIndex;
@@ -271,8 +270,8 @@
       }
     });
 
-    // Stage rotation
-    stage.style.transform = `rotateY(${-current * (360 / N)}deg)`;
+    // Stage rotation (infinite tracking via absoluteIndex)
+    stage.style.transform = `rotateY(${-absoluteIndex * angleStep}deg)`;
 
     // Dots
     dots.forEach((dot, i) => {
@@ -283,17 +282,18 @@
   }
 
   function goTo(index) {
-    current = ((index % N) + N) % N;
+    absoluteIndex = index;
+    current = ((absoluteIndex % N) + N) % N;
     updateCarousel();
   }
 
-  document.getElementById('prevBtn').addEventListener('click', () => goTo(current - 1));
-  document.getElementById('nextBtn').addEventListener('click', () => goTo(current + 1));
+  document.getElementById('prevBtn').addEventListener('click', () => goTo(absoluteIndex - 1));
+  document.getElementById('nextBtn').addEventListener('click', () => goTo(absoluteIndex + 1));
 
   // Keyboard nav
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'ArrowLeft') goTo(current - 1);
-    if (e.key === 'ArrowRight') goTo(current + 1);
+    if (e.key === 'ArrowLeft') goTo(absoluteIndex - 1);
+    if (e.key === 'ArrowRight') goTo(absoluteIndex + 1);
   });
 
   // Touch/drag support
@@ -303,15 +303,15 @@
   scene.addEventListener('touchend', (e) => {
     if (startX === null) return;
     const dx = e.changedTouches[0].clientX - startX;
-    if (dx < -40) goTo(current + 1);
-    else if (dx > 40) goTo(current - 1);
+    if (dx < -40) goTo(absoluteIndex + 1);
+    else if (dx > 40) goTo(absoluteIndex - 1);
     startX = null;
   }, { passive: true });
 
   // Auto-advance
-  setInterval(() => goTo(current + 1), 4000);
+  setInterval(() => goTo(absoluteIndex + 1), 4000);
 
-  updateCarousel(false);
+  updateCarousel();
 </script>
 </body>
 </html>
