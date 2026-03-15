@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Interactive Procedural DNA</title>
+    <title>Transformative Procedural DNA sequence</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -54,128 +54,229 @@
         import * as THREE from 'three';
         import { Canvas, useFrame, useThree } from '@react-three/fiber';
 
-        const PARTICLE_COUNT = 300;
-        const STRAND_RADIUS = 2.5;
-        const HEIGHT_SPREAD = 0.08;
-        const FREQUENCY = 0.5;
+        const PARTICLE_COUNT = 400; // per strand, 800 total
+        const STRAND_RADIUS = 2.0;
+        const HEIGHT_SPREAD = 0.05;
+        const FREQUENCY = 0.4;
+        const TOTAL_LOOP = 15; // Represents the 4-phase 15-second loop
 
-        // --- Core DNA Structure ---
-        const DNAHelix = () => {
+        // Lightweight interpolation physics
+        const easeInOutCubic = t => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+        const easeOutQuad = t => t * (2 - t);
+
+        const TransformativeDNA = ({ onPhaseChange }) => {
             const instancedMeshRef = useRef();
             const linesRef = useRef();
             const groupRef = useRef();
-            const { invalidate } = useThree();
 
-            // 1. Procedural Generation Arrays
-            const { matrices, colors, linePositions, lineColors } = useMemo(() => {
-                const tempObject = new THREE.Object3D();
-                const tempColor = new THREE.Color();
-                
-                // For InstancedMesh (Both strands)
-                const matrices = new Float32Array(PARTICLE_COUNT * 2 * 16);
-                const colors = new Float32Array(PARTICLE_COUNT * 2 * 3);
-                
-                // For LineSegments (Rungs connecting strands)
-                const linePositions = [];
-                const lineColors = [];
+            const { basePositions, chaosPositions, colors, lineIndices, posArray, colArray } = useMemo(() => {
+                const basePositions = [];
+                const chaosPositions = [];
+                const colors = [];
+                const lineIndices = [];
 
-                const color1 = new THREE.Color("#06b6d4"); // Cyan
-                const color2 = new THREE.Color("#d946ef"); // Magenta
+                const color1 = new THREE.Color("#0bd3d3"); // Cyan
+                const color2 = new THREE.Color("#f890e7"); // Magenta
 
                 for (let i = 0; i < PARTICLE_COUNT; i++) {
                     const t = i * FREQUENCY;
-                    const y = (i - PARTICLE_COUNT / 2) * HEIGHT_SPREAD;
+                    const y = (i - PARTICLE_COUNT / 2) * HEIGHT_SPREAD; // Spread evenly on Y axis
+                    const normalizedY = i / PARTICLE_COUNT;
                     
-                    // Strand 1 (Cyan)
+                    // Strand 1
                     const x1 = Math.cos(t) * STRAND_RADIUS;
                     const z1 = Math.sin(t) * STRAND_RADIUS;
-                    
-                    tempObject.position.set(x1, y, z1);
-                    tempObject.updateMatrix();
-                    tempObject.matrix.toArray(matrices, i * 16);
-                    tempColor.copy(color1).toArray(colors, i * 3);
+                    basePositions.push({ x: x1, y, z: z1, strand: 0, normalizedY });
+                    colors.push(color1.r, color1.g, color1.b);
 
-                    // Strand 2 (Magenta) - Offset by Pi
+                    // Strand 2
                     const x2 = Math.cos(t + Math.PI) * STRAND_RADIUS;
                     const z2 = Math.sin(t + Math.PI) * STRAND_RADIUS;
-                    
-                    tempObject.position.set(x2, y, z2);
-                    tempObject.updateMatrix();
-                    tempObject.matrix.toArray(matrices, (i + PARTICLE_COUNT) * 16);
-                    tempColor.copy(color2).toArray(colors, (i + PARTICLE_COUNT) * 3);
+                    basePositions.push({ x: x2, y, z: z2, strand: 1, normalizedY });
+                    colors.push(color2.r, color2.g, color2.b);
 
-                    // Create Base Pairs (Rungs between strands every few nodes)
-                    if (i % 3 === 0) {
-                        linePositions.push(x1, y, z1); // Start of line
-                        linePositions.push(x2, y, z2); // End of line
-                        
-                        // Gradient line colors
-                        lineColors.push(color1.r, color1.g, color1.b);
-                        lineColors.push(color2.r, color2.g, color2.b);
+                    // Random chaotic destinations mapped for phase 3
+                    chaosPositions.push({
+                        x: (Math.random() - 0.5) * 40,
+                        y: y + (Math.random() - 0.5) * 20,
+                        z: (Math.random() - 0.5) * 40,
+                        speed: 0.2 + Math.random() * 0.8
+                    });
+                    chaosPositions.push({
+                        x: (Math.random() - 0.5) * 40,
+                        y: y + (Math.random() - 0.5) * 20,
+                        z: (Math.random() - 0.5) * 40,
+                        speed: 0.2 + Math.random() * 0.8
+                    });
+
+                    // Add base pairs (lines) every 4 particles
+                    if (i % 4 === 0) {
+                        const idx1 = i * 2;
+                        const idx2 = i * 2 + 1;
+                        lineIndices.push({ idx1, idx2, normalizedY });
                     }
                 }
 
-                return { 
-                    matrices, 
-                    colors, 
-                    linePositions: new Float32Array(linePositions), 
-                    lineColors: new Float32Array(lineColors) 
-                };
+                const numPairs = lineIndices.length;
+                const posArray = new Float32Array(numPairs * 6);
+                const colArray = new Float32Array(numPairs * 6);
+
+                return { basePositions, chaosPositions, colors: new Float32Array(colors), lineIndices, posArray, colArray };
             }, []);
 
-            // 2. Hydrate InstancedMesh on mount
-            useEffect(() => {
-                if (instancedMeshRef.current) {
-                    for (let i = 0; i < PARTICLE_COUNT * 2; i++) {
-                        const matrix = new THREE.Matrix4().fromArray(matrices, i * 16);
-                        instancedMeshRef.current.setMatrixAt(i, matrix);
-                    }
-                    instancedMeshRef.current.instanceMatrix.needsUpdate = true;
-                }
-            }, [matrices]);
+            const tempObject = useMemo(() => new THREE.Object3D(), []);
 
-            // 3. Continuous gentle rotation
-            useFrame((state, delta) => {
+            useFrame((state) => {
+                const time = state.clock.elapsedTime;
+                
+                // Continuous slow rotation
                 if (groupRef.current) {
-                    groupRef.current.rotation.y += delta * 0.15;
-                    groupRef.current.position.y = Math.sin(state.clock.elapsedTime * 0.5) * 0.5;
-                    invalidate(); // Keep frameloop running for continuous animation
+                    groupRef.current.rotation.y = time * 0.2;
                 }
+
+                const loopTime = time % TOTAL_LOOP; // 0 to 15 seconds
+                
+                // Inform UI of phase
+                let currentPhase = 1;
+                if (loopTime >= 5 && loopTime < 8) currentPhase = 2;
+                else if (loopTime >= 8 && loopTime < 12) currentPhase = 3;
+                else if (loopTime >= 12 && loopTime < 15) currentPhase = 4;
+                onPhaseChange(currentPhase);
+
+                const cyan = new THREE.Color("#0bd3d3");
+                const magenta = new THREE.Color("#f890e7");
+
+                // Update particles
+                for (let i = 0; i < basePositions.length; i++) {
+                    const base = basePositions[i];
+                    const chaos = chaosPositions[i];
+                    
+                    let explosionProgress = 0;
+                    
+                    // Phase State Machine
+                    // 0-5s: Idle (progress = 0)
+                    // 5-8s: Explode bottom-up ripple
+                    // 8-12s: Chaos drifting
+                    // 12-15s: Re-assemble smoothly
+                    
+                    if (loopTime >= 5 && loopTime < 8) {
+                        const rawT = (loopTime - 5) / 3; 
+                        const delay = base.normalizedY * 0.6; // Bottom-up delay up to 0.6
+                        const p = Math.max(0, Math.min(1, (rawT - delay) / 0.4));
+                        explosionProgress = easeOutQuad(p);
+                    } else if (loopTime >= 8 && loopTime < 12) {
+                        explosionProgress = 1;
+                    } else if (loopTime >= 12 && loopTime < 15) {
+                        const rawT = (loopTime - 12) / 3;
+                        // Everyone assembles universally together for a dramatic snap
+                        explosionProgress = 1 - easeInOutCubic(Math.min(1, rawT));
+                    }
+
+                    // Float organically while in chaos based on node's unique speed matrix
+                    const chaosOscillation = (Math.sin(time * chaos.speed + i) * 2) * explosionProgress;
+                    
+                    const curX = THREE.MathUtils.lerp(base.x, chaos.x + chaosOscillation, explosionProgress);
+                    const curY = THREE.MathUtils.lerp(base.y, chaos.y + chaosOscillation, explosionProgress);
+                    const curZ = THREE.MathUtils.lerp(base.z, chaos.z + chaosOscillation, explosionProgress);
+
+                    tempObject.position.set(curX, curY, curZ);
+
+                    // GSAP-like dynamic scaling effect during the explosion shockwave (scale bursts up, drops down)
+                    let scale = 1;
+                    if (loopTime >= 5 && loopTime < 8) {
+                        const rawT = (loopTime - 5) / 3;
+                        const delay = base.normalizedY * 0.6;
+                        const p = Math.max(0, Math.min(1, (rawT - delay) / 0.4));
+                        if (p > 0 && p < 1) scale = 1 + Math.sin(p * Math.PI) * 2; // Expand dramatically
+                    } else if (loopTime >= 12 && loopTime < 15) {
+                         const rawT = (loopTime - 12) / 3;
+                         const p = Math.min(1, rawT);
+                         scale = Math.max(0.01, 1 - Math.sin(p * Math.PI) * 0.5); // Shrink slightly before re-attachment
+                    }
+                    tempObject.scale.setScalar(scale);
+                    
+                    tempObject.updateMatrix();
+                    instancedMeshRef.current.setMatrixAt(i, tempObject.matrix);
+
+                    // Store current positions so the line segments can track them
+                    base.currentX = curX;
+                    base.currentY = curY;
+                    base.currentZ = curZ;
+                }
+                
+                instancedMeshRef.current.instanceMatrix.needsUpdate = true;
+
+                // Update Line Segment Rungs
+                let pairIndex = 0;
+                for (const conn of lineIndices) {
+                    const p1 = basePositions[conn.idx1];
+                    const p2 = basePositions[conn.idx2];
+
+                    posArray[pairIndex * 6 + 0] = p1.currentX;
+                    posArray[pairIndex * 6 + 1] = p1.currentY;
+                    posArray[pairIndex * 6 + 2] = p1.currentZ;
+                    posArray[pairIndex * 6 + 3] = p2.currentX;
+                    posArray[pairIndex * 6 + 4] = p2.currentY;
+                    posArray[pairIndex * 6 + 5] = p2.currentZ;
+
+                    // Fade out the base pairs during the explosion ripple
+                    let opacity = 0.5;
+                    if (loopTime >= 5 && loopTime < 8) {
+                        const rawT = (loopTime - 5) / 3;
+                        const delay = conn.normalizedY * 0.6;
+                        opacity = 0.5 * (1 - Math.max(0, Math.min(1, (rawT - delay) / 0.4)));
+                    } else if (loopTime >= 8 && loopTime < 12) {
+                        opacity = 0;
+                    } else if (loopTime >= 12 && loopTime < 15) {
+                        const rawT = (loopTime - 12) / 3;
+                        opacity = 0.5 * easeInOutCubic(Math.min(1, rawT));
+                    }
+
+                    // Apply transparency natively via vertex colors
+                    colArray[pairIndex * 6 + 0] = cyan.r * opacity;
+                    colArray[pairIndex * 6 + 1] = cyan.g * opacity;
+                    colArray[pairIndex * 6 + 2] = cyan.b * opacity;
+                    colArray[pairIndex * 6 + 3] = magenta.r * opacity;
+                    colArray[pairIndex * 6 + 4] = magenta.g * opacity;
+                    colArray[pairIndex * 6 + 5] = magenta.b * opacity;
+
+                    pairIndex++;
+                }
+
+                // Push highly optimized buffer updates instantly
+                linesRef.current.geometry.attributes.position.needsUpdate = true;
+                linesRef.current.geometry.attributes.color.needsUpdate = true;
             });
 
             return (
                 <group ref={groupRef}>
-                    {/* INSTANCED MESH: Draws all 600 DNA atoms in a SINGLE GPU Draw Call */}
                     <instancedMesh ref={instancedMeshRef} args={[null, null, PARTICLE_COUNT * 2]}>
                         <sphereGeometry args={[0.08, 8, 8]}>
                             <instancedBufferAttribute attach="attributes-color" args={[colors, 3]} />
                         </sphereGeometry>
-                        <meshBasicMaterial vertexColors toneMapped={false} />
+                        {/* Additive blending makes particles look like glowing energy sources without heavy lights */}
+                        <meshBasicMaterial vertexColors toneMapped={false} blending={THREE.AdditiveBlending} depthWrite={false} transparent />
                     </instancedMesh>
 
-                    {/* LINE SEGMENTS: Draws all base pair rungs natively */}
                     <lineSegments ref={linesRef}>
                         <bufferGeometry>
-                            <bufferAttribute attach="attributes-position" count={linePositions.length / 3} array={linePositions} itemSize={3} />
-                            <bufferAttribute attach="attributes-color" count={lineColors.length / 3} array={lineColors} itemSize={3} />
+                            <bufferAttribute attach="attributes-position" count={posArray.length / 3} array={posArray} itemSize={3} usage={THREE.DynamicDrawUsage} />
+                            <bufferAttribute attach="attributes-color" count={colArray.length / 3} array={colArray} itemSize={3} usage={THREE.DynamicDrawUsage} />
                         </bufferGeometry>
-                        <lineBasicMaterial vertexColors toneMapped={false} transparent opacity={0.3} />
+                        <lineBasicMaterial vertexColors toneMapped={false} blending={THREE.AdditiveBlending} transparent depthWrite={false} />
                     </lineSegments>
                 </group>
             );
         };
 
-        // --- Camera & Interaction ---
-        const Scene = () => {
-            const { camera, pointer, invalidate } = useThree();
+        const Scene = ({ onPhaseChange }) => {
+            const { camera, pointer } = useThree();
             const groupRef = useRef();
 
-            // Hardware-accelerated Parallax bound to mouse
+            // Performant damped Parallax tracking
             useFrame(() => {
-                // Lerp camera towards mouse coordinates for smooth lag effect
-                const targetX = (pointer.x * 2);
-                const targetY = (pointer.y * 2);
-                
+                const targetX = pointer.x * 5;
+                const targetY = pointer.y * 5;
                 camera.position.x += (targetX - camera.position.x) * 0.05;
                 camera.position.y += (targetY - camera.position.y) * 0.05;
                 camera.lookAt(0, 0, 0);
@@ -183,45 +284,51 @@
 
             return (
                 <group ref={groupRef}>
-                    <DNAHelix />
+                    <TransformativeDNA onPhaseChange={onPhaseChange} />
                 </group>
             );
         };
 
         const App = () => {
+            const [phase, setPhase] = useState(1);
+            
+            // Debounce state updates to prevent React re-render thrashing at 60fps
+            const handlePhaseChange = (p) => {
+                if(phase !== p) setPhase(p);
+            };
+
             return (
                 <div className="w-full h-screen bg-slate-950 flex flex-col items-center justify-center relative touch-none">
-                    
-                    {/* Top UI HUD Overlay */}
                     <div className="absolute top-8 left-8 pointer-events-none z-10">
                         <h1 className="text-white tracking-[0.2em] text-sm uppercase font-black mb-1">
-                            Gen-Seq <span className="text-cyan-400">v9.2</span>
+                            Project <span className="text-cyan-400">G-NOME</span>
                         </h1>
-                        <p className="text-slate-500 font-mono text-[10px] tracking-widest">PROCEDURAL BIO-COMPUTATION</p>
+                        <p className="text-slate-500 font-mono text-[10px] tracking-widest">AUTOMATED TRANSFORMATION LOOP</p>
+                    </div>
+
+                    <div className="absolute bottom-8 left-8 pointer-events-none z-10">
+                        <div className="flex flex-col gap-1.5 transition-all">
+                            <span className={`font-mono text-[10px] tracking-widest uppercase transition-colors ${phase === 1 ? 'text-white font-bold' : 'text-slate-600'}`}>Phase 1: Stable Rotation</span>
+                            <span className={`font-mono text-[10px] tracking-widest uppercase transition-colors ${phase === 2 ? 'text-cyan-400 font-bold' : 'text-slate-600'}`}>Phase 2: Transition & Explode</span>
+                            <span className={`font-mono text-[10px] tracking-widest uppercase transition-colors ${phase === 3 ? 'text-magenta-400 font-bold' : 'text-slate-600'}`}>Phase 3: Chaos Dissipation</span>
+                            <span className={`font-mono text-[10px] tracking-widest uppercase transition-colors ${phase === 4 ? 'text-cyan-400 font-bold' : 'text-slate-600'}`}>Phase 4: Automatic Reassembly</span>
+                        </div>
                     </div>
 
                     <div className="absolute bottom-8 right-8 pointer-events-none text-right">
                         <div className="flex items-center justify-end gap-3 mb-2">
                             <span className="relative flex h-2 w-2">
-                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-magenta-400 opacity-75"></span>
-                              <span className="relative inline-flex rounded-full h-2 w-2 bg-fuchsia-500"></span>
+                              <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${phase === 1 ? 'bg-cyan-400' : phase === 3 ? 'bg-fuchsia-500' : 'bg-emerald-400'}`}></span>
+                              <span className={`relative inline-flex rounded-full h-2 w-2 ${phase === 1 ? 'bg-cyan-500' : phase === 3 ? 'bg-fuchsia-600' : 'bg-emerald-500'}`}></span>
                             </span>
-                            <span className="text-slate-400 font-mono text-[10px] tracking-widest uppercase">System Online</span>
+                            <span className="text-slate-400 font-mono text-[10px] tracking-widest uppercase">Simulation Active - {phase}/4</span>
                         </div>
-                        <p className="text-slate-600 font-mono text-[9px] tracking-widest">INSTANCED_MESH // ZERO_MODELS</p>
                     </div>
 
-                    {/* Highly Optimized R3F Scene */}
                     <div className="w-full h-full cursor-crosshair">
-                        <Canvas 
-                            dpr={Math.min(window.devicePixelRatio, 1.5)} // Caps performance for integrated graphics
-                            camera={{ position: [0, 0, 15], fov: 45 }}
-                            gl={{ antialias: true, alpha: false }} // alpha false prevents heavy clear
-                        >
+                        <Canvas dpr={Math.min(window.devicePixelRatio, 1.5)} camera={{ position: [0, 0, 18], fov: 45 }} gl={{ antialias: true, alpha: false }}>
                             <color attach="background" args={['#020617']} />
-                            
-                            {/* Zero lights needed! All materials are meshBasicMaterial/lineBasicMaterial with vertexColors */}
-                            <Scene />
+                            <Scene onPhaseChange={handlePhaseChange} />
                         </Canvas>
                     </div>
                 </div>
