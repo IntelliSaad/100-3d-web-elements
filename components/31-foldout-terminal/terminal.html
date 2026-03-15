@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Fold-Out Terminal</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        neutral: {
+                            950: '#0a0a0a',
+                            900: '#171717',
+                            800: '#262626'
+                        }
+                    },
+                    fontFamily: {
+                        mono: ['"Fira Code"', '"JetBrains Mono"', 'monospace'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { margin: 0; background-color: #0a0a0a; color: white; /* Let page scroll */ overflow-x: hidden; }
+        
+        /* Glassmorphism terminal header */
+        .terminal-header {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        /* Syntax highlighting colors */
+        .syntax-keyword { color: #ff7b72; }
+        .syntax-function { color: #d2a8ff; }
+        .syntax-string { color: #a5d6ff; }
+        .syntax-comment { color: #8b949e; }
+        .syntax-variable { color: #c9d1d9; }
+        .syntax-operator { color: #79c0ff; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <!-- React, ReactDOM, and Framer Motion via ESM -->
+    <script type="importmap">
+    {
+        "imports": {
+            "react": "https://esm.sh/react@18.2.0",
+            "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+            "framer-motion": "https://esm.sh/framer-motion@11.0.8?external=react,react-dom"
+        }
+    }
+    </script>
+
+    <!-- Babel for JSX -->
+    <script>
+        // Suppress Babel warning
+        const origWarn = console.warn;
+        console.warn = function(...args) {
+            if (args[0] && args[0].includes('in-browser Babel transformer')) return;
+            origWarn.apply(console, args);
+        };
+    </script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <script type="text/babel" data-type="module">
+        import React, { useState, useEffect } from 'react';
+        import { createRoot } from 'react-dom/client';
+        import { motion } from 'framer-motion';
+
+        const TypewriterLine = ({ text, delay = 0, onComplete }) => {
+            const [displayedText, setDisplayedText] = useState('');
+            
+            useEffect(() => {
+                let timeout;
+                let currentIndex = 0;
+                
+                const typeChar = () => {
+                    if (currentIndex <= text.length) {
+                        setDisplayedText(text.slice(0, currentIndex));
+                        currentIndex++;
+                        timeout = setTimeout(typeChar, Math.random() * 30 + 10);
+                    } else if (onComplete) {
+                        onComplete();
+                    }
+                };
+
+                const startTimeout = setTimeout(typeChar, delay * 1000);
+                return () => {
+                    clearTimeout(startTimeout);
+                    clearTimeout(timeout);
+                };
+            }, [text, delay, onComplete]);
+
+            // Simple pseudo-syntax highlighting parser
+            const renderHighlightedText = (content) => {
+                if (content.startsWith('//')) {
+                    return <span className="syntax-comment">{content}</span>;
+                }
+                if (content.startsWith('$')) {
+                    return <span><span className="syntax-operator">$</span> {content.substring(2)}</span>;
+                }
+                
+                // Extremely basic parsing for visual effect
+                return content.split(/(\s+|=|\(|\)|'|\[|\])/).map((part, i) => {
+                    if (['const', 'import', 'from', 'export', 'default', 'return', 'async', 'await'].includes(part)) return <span key={i} className="syntax-keyword">{part}</span>;
+                    if (['=', '=>', '+', '-', '*', '/'].includes(part)) return <span key={i} className="syntax-operator">{part}</span>;
+                    if (part.startsWith("'") && part.endsWith("'")) return <span key={i} className="syntax-string">{part}</span>;
+                    if (['fetch', 'render', 'connect', 'deploy'].includes(part)) return <span key={i} className="syntax-function">{part}</span>;
+                    return <span key={i} className="syntax-variable">{part}</span>;
+                });
+            };
+
+            return (
+                <div className="font-mono text-[13px] md:text-sm leading-relaxed tracking-tight whitespace-pre">
+                    {renderHighlightedText(displayedText)}
+                </div>
+            );
+        };
+
+        const CodeSequence = ({ isVisible }) => {
+            const [step, setStep] = useState(0);
+
+            useEffect(() => {
+                if (!isVisible) {
+                    setStep(0); // Reset when out of view
+                } else if (step === 0) {
+                    setStep(1); // Start sequence
+                }
+            }, [isVisible]);
+
+            const lines = [
+                { text: "// Initialize deployment sequence", delay: 0.5 },
+                { text: "$ npx construct-infrastructure --prod", delay: 0.2 },
+                { text: "Building optimized assets...", delay: 0.8 },
+                { text: "✓ Generated static chunks (12ms)", delay: 0.4 },
+                { text: "✓ Compiled Edge functions (4ms)", delay: 0.2 },
+                { text: " ", delay: 0 },
+                { text: "const serverless = async () => {", delay: 0.5 },
+                { text: "  const db = await connect('global-edge-db');", delay: 0.2 },
+                { text: "  const res = await db.fetch('users');", delay: 0.3 },
+                { text: "  return res.json();", delay: 0.2 },
+                { text: "}", delay: 0.1 },
+                { text: " ", delay: 0 },
+                { text: "$ deploy --alias production", delay: 0.5 },
+                { text: "Deploying to 35 global edge regions...", delay: 0.4 },
+                { text: "✓ Deployment successful! URL: https://example.com", delay: 0.8 }
+            ];
+
+            return (
+                <div className="p-5 h-full flex flex-col gap-1 overflow-hidden">
+                    {lines.map((line, index) => {
+                        // Only render if we've reached this step in the sequence
+                        if (step <= index) return null;
+                        
+                        return (
+                            <TypewriterLine 
+                                key={index} 
+                                text={line.text} 
+                                delay={line.delay}
+                                onComplete={() => {
+                                    if (step === index + 1 && step < lines.length) {
+                                        setStep(step + 1);
+                                    }
+                                }}
+                            />
+                        );
+                    })}
+                    {/* Blinking Cursor */}
+                    {step > 0 && step <= lines.length && (
+                        <motion.div 
+                            animate={{ opacity: [1, 0, 1] }} 
+                            transition={{ repeat: Infinity, duration: 0.8 }}
+                            className="w-2 h-4 bg-white/70 mt-1 inline-block"
+                        />
+                    )}
+                </div>
+            );
+        };
+
+        const FoldOutTerminal = () => {
+            const [isInView, setIsInView] = useState(false);
+
+            return (
+                <div style={{ perspective: '1200px' }} className="w-full max-w-4xl mx-auto py-24 px-4 flex justify-center">
+                    <motion.div
+                        // Framer Motion physics for the fold-out effect
+                        initial={{ rotateX: 90, opacity: 0, y: 50, scale: 0.9 }}
+                        whileInView={{ rotateX: 0, opacity: 1, y: 0, scale: 1 }}
+                        viewport={{ once: false, amount: 0.4 }} // Trigger when 40% visible
+                        onViewportEnter={() => setIsInView(true)}
+                        onViewportLeave={() => setIsInView(false)}
+                        transition={{ 
+                            type: "spring", 
+                            stiffness: 100, 
+                            damping: 20,
+                            mass: 0.8
+                        }}
+                        style={{ 
+                            transformOrigin: "bottom center", // Fold open from the bottom hinge like a laptop
+                            transformStyle: 'preserve-3d'
+                        }}
+                        className="w-full h-[500px] bg-neutral-900 rounded-xl overflow-hidden shadow-2xl border border-white/10 flex flex-col relative"
+                    >
+                        {/* Fake 3D thickness side-panels using pseudo-elements would go here if needed, but CSS drop-shadow handles most of the physical feel */}
+
+                        {/* macOS Standard Window Header */}
+                        <div className="h-12 w-full terminal-header flex items-center px-4 relative shrink-0">
+                            {/* Traffic Lights */}
+                            <div className="flex gap-2">
+                                <div className="w-3 h-3 rounded-full bg-[#ff5f56] border border-[#ff5f56]/20"></div>
+                                <div className="w-3 h-3 rounded-full bg-[#ffbd2e] border border-[#ffbd2e]/20"></div>
+                                <div className="w-3 h-3 rounded-full bg-[#27c93f] border border-[#27c93f]/20"></div>
+                            </div>
+                            
+                            {/* Window Title */}
+                            <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-2 text-neutral-400 text-sm font-medium">
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14M12 5l7 7-7 7" />
+                                </svg>
+                                zsh - deployment
+                            </div>
+                        </div>
+
+                        {/* Terminal Body */}
+                        <div className="flex-1 bg-black/50 relative">
+                            {/* Very faint background grid for developer aesthetic */}
+                            <div className="absolute inset-0 z-0 opacity-10" style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px)', backgroundSize: '20px 20px' }}></div>
+                            
+                            <div className="relative z-10 w-full h-full">
+                                <CodeSequence isVisible={isInView} />
+                            </div>
+                        </div>
+                    </motion.div>
+                </div>
+            );
+        };
+
+        const App = () => {
+            return (
+                <div className="w-full flex justify-center items-center min-h-[1000px] bg-neutral-950 flex-col">
+                    <div className="h-[20vh] w-full flex items-center justify-center text-neutral-600 font-mono text-sm tracking-widest uppercase">
+                        Scroll Down to Trigger 3D Fold
+                    </div>
+                    
+                    <FoldOutTerminal />
+                    
+                    <div className="h-[20vh] w-full"></div>
+                </div>
+            );
+        };
+
+        const root = createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
