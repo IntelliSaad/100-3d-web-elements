@@ -57,7 +57,7 @@
         // Suppress Babel warning
         const origWarn = console.warn;
         console.warn = function(...args) {
-            if (args[0] && args[0].includes('in-browser Babel transformer')) return;
+            if (args[0] && typeof args[0] === 'string' && (args[0].includes('in-browser Babel transformer') || args[0].includes('cdn.tailwindcss.com should not be used in production'))) return;
             origWarn.apply(console, args);
         };
     </script>
@@ -327,3 +327,4 @@
     </script>
 </body>
 </html>
+
