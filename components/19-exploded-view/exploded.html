@@ -64,7 +64,7 @@
         const easeInOutCubic = t => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
         const easeOutQuad = t => t * (2 - t);
 
-        const TransformativeDNA = ({ onPhaseChange }) => {
+        const TransformativeDNA = () => {
             const instancedMeshRef = useRef();
             const linesRef = useRef();
             const groupRef = useRef();
@@ -135,13 +135,6 @@
                 }
 
                 const loopTime = time % TOTAL_LOOP; // 0 to 15 seconds
-                
-                // Inform UI of phase
-                let currentPhase = 1;
-                if (loopTime >= 5 && loopTime < 8) currentPhase = 2;
-                else if (loopTime >= 8 && loopTime < 12) currentPhase = 3;
-                else if (loopTime >= 12 && loopTime < 15) currentPhase = 4;
-                onPhaseChange(currentPhase);
 
                 const cyan = new THREE.Color("#0bd3d3");
                 const magenta = new THREE.Color("#f890e7");
@@ -269,7 +262,7 @@
             );
         };
 
-        const Scene = ({ onPhaseChange }) => {
+        const Scene = () => {
             const { camera, pointer } = useThree();
             const groupRef = useRef();
 
@@ -284,51 +277,18 @@
 
             return (
                 <group ref={groupRef}>
-                    <TransformativeDNA onPhaseChange={onPhaseChange} />
+                    <TransformativeDNA />
                 </group>
             );
         };
 
         const App = () => {
-            const [phase, setPhase] = useState(1);
-            
-            // Debounce state updates to prevent React re-render thrashing at 60fps
-            const handlePhaseChange = (p) => {
-                if(phase !== p) setPhase(p);
-            };
-
             return (
                 <div className="w-full h-screen bg-slate-950 flex flex-col items-center justify-center relative touch-none">
-                    <div className="absolute top-8 left-8 pointer-events-none z-10">
-                        <h1 className="text-white tracking-[0.2em] text-sm uppercase font-black mb-1">
-                            Project <span className="text-cyan-400">G-NOME</span>
-                        </h1>
-                        <p className="text-slate-500 font-mono text-[10px] tracking-widest">AUTOMATED TRANSFORMATION LOOP</p>
-                    </div>
-
-                    <div className="absolute bottom-8 left-8 pointer-events-none z-10">
-                        <div className="flex flex-col gap-1.5 transition-all">
-                            <span className={`font-mono text-[10px] tracking-widest uppercase transition-colors ${phase === 1 ? 'text-white font-bold' : 'text-slate-600'}`}>Phase 1: Stable Rotation</span>
-                            <span className={`font-mono text-[10px] tracking-widest uppercase transition-colors ${phase === 2 ? 'text-cyan-400 font-bold' : 'text-slate-600'}`}>Phase 2: Transition & Explode</span>
-                            <span className={`font-mono text-[10px] tracking-widest uppercase transition-colors ${phase === 3 ? 'text-magenta-400 font-bold' : 'text-slate-600'}`}>Phase 3: Chaos Dissipation</span>
-                            <span className={`font-mono text-[10px] tracking-widest uppercase transition-colors ${phase === 4 ? 'text-cyan-400 font-bold' : 'text-slate-600'}`}>Phase 4: Automatic Reassembly</span>
-                        </div>
-                    </div>
-
-                    <div className="absolute bottom-8 right-8 pointer-events-none text-right">
-                        <div className="flex items-center justify-end gap-3 mb-2">
-                            <span className="relative flex h-2 w-2">
-                              <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${phase === 1 ? 'bg-cyan-400' : phase === 3 ? 'bg-fuchsia-500' : 'bg-emerald-400'}`}></span>
-                              <span className={`relative inline-flex rounded-full h-2 w-2 ${phase === 1 ? 'bg-cyan-500' : phase === 3 ? 'bg-fuchsia-600' : 'bg-emerald-500'}`}></span>
-                            </span>
-                            <span className="text-slate-400 font-mono text-[10px] tracking-widest uppercase">Simulation Active - {phase}/4</span>
-                        </div>
-                    </div>
-
                     <div className="w-full h-full cursor-crosshair">
                         <Canvas dpr={Math.min(window.devicePixelRatio, 1.5)} camera={{ position: [0, 0, 18], fov: 45 }} gl={{ antialias: true, alpha: false }}>
                             <color attach="background" args={['#020617']} />
-                            <Scene onPhaseChange={handlePhaseChange} />
+                            <Scene />
                         </Canvas>
                     </div>
                 </div>
