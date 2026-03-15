@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kinetic Typography Portal</title>
+    <style>
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body {
+            background:#0a0a0a; color:#fff;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            overflow: hidden; height: 100vh; width: 100vw;
+        }
+        #root { width:100%; height:100%; display:flex; flex-direction:column; }
+        .canvas-container { flex:1; position:relative; }
+        
+        .ui-container {
+            position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%);
+            z-index: 10;
+            display: flex; gap: 12px; align-items: center;
+            background: rgba(10, 10, 10, 0.7);
+            padding: 12px 24px;
+            border-radius: 100px;
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.8);
+        }
+        input {
+            background: transparent; border: none; outline: none;
+            color: #fff; font-size: 16px; font-weight: 600;
+            width: 200px; letter-spacing: 1px;
+        }
+        input::placeholder { color: rgba(255,255,255,0.3); }
+        button {
+            background: #00f5ff; color: #0a0a0a;
+            border: none; border-radius: 50px;
+            padding: 12px 28px; font-size: 13px; font-weight: 800;
+            cursor: pointer; letter-spacing: 2px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            text-transform: uppercase;
+        }
+        button:hover {
+            box-shadow: 0 0 25px rgba(0, 245, 255, 0.5);
+            transform: scale(1.05);
+        }
+        button:active { transform: scale(0.95); }
+    </style>
+</head>
+<body>
+
+<div id="root"></div>
+
+<!-- ESM Import Map for React and Three.js Ecosystem -->
+<script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@18.2.0",
+    "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+    "three": "https://esm.sh/three@0.160.0",
+    "@react-three/fiber": "https://esm.sh/@react-three/fiber@8.15.12?external=react,react-dom,three",
+    "@react-three/drei": "https://esm.sh/@react-three/drei@9.96.1?external=react,react-dom,three,@react-three/fiber",
+    "gsap": "https://esm.sh/gsap@3.12.5"
+  }
+}
+</script>
+
+<!-- Babel for in-browser JSX compilation -->
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+<script type="text/babel" data-type="module">
+import React, { useRef, useMemo, useState, useEffect } from 'react';
+import { createRoot } from 'react-dom/client';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
+import * as THREE from 'three';
+import gsap from 'gsap';
+
+const NUM_PARTICLES = 20000;
+
+function ParticleSystem({ text }) {
+    const meshRef = useRef();
+    const materialRef = useRef();
+    const { invalidate, size } = useThree();
+    
+    // Initial Idle Sphere Positions
+    const spherePositions = useMemo(() => {
+        const pos = new Float32Array(NUM_PARTICLES * 3);
+        const radius = 4.5;
+        for(let i=0; i<NUM_PARTICLES; i++) {
+            const u = Math.random();
+            const v = Math.random();
+            const theta = u * 2.0 * Math.PI;
+            const phi = Math.acos(2.0 * v - 1.0);
+            
+            // Bias towards the outer shell for a hollow-ish sphere look
+            const r = radius * (0.6 + Math.cbrt(Math.random()) * 0.4); 
+            
+            pos[i*3] = r * Math.sin(phi) * Math.cos(theta);
+            pos[i*3+1] = r * Math.sin(phi) * Math.sin(theta);
+            pos[i*3+2] = r * Math.cos(phi);
+        }
+        return pos;
+    }, []);
+
+    // Uniforms
+    const uniforms = useMemo(() => ({
+        uTime: { value: 0 },
+        uMorph: { value: 0 },
+        uMouse: { value: new THREE.Vector3(999, 999, 999) },
+        uColorCyan: { value: new THREE.Color("#00f5ff") },
+        uColorGold: { value: new THREE.Color("#ffdf00") },
+    }), []);
+
+    // Morph Logic when Text changes
+    useEffect(() => {
+        if(!meshRef.current || !text) return;
+        const geo = meshRef.current.geometry;
+        const startAttr = geo.attributes.aPositionStart;
+        const endAttr = geo.attributes.aPositionEnd;
+        
+        // 1. Render text to hidden 2D canvas to extract pixel coordinates
+        const canvas = document.createElement('canvas');
+        const tempCtx = canvas.getContext('2d');
+        const fontStr = '900 240px system-ui, -apple-system, sans-serif';
+        tempCtx.font = fontStr;
+        const textWidth = tempCtx.measureText(text).width;
+        
+        // Size canvas perfectly to the text width to avoid clipping or wasted space
+        canvas.width = Math.max(1200, textWidth + 200);
+        canvas.height = 500;
+        
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = 'black';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        ctx.font = fontStr; 
+        ctx.fillStyle = 'white';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(text, canvas.width/2, canvas.height/2);
+
+        const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+        const textCoords = [];
+        
+        // Density step (higher = fewer extracted pixels)
+        const density = Math.max(1, Math.floor(canvas.width / 400));
+        
+        for(let y=0; y<canvas.height; y+=density) {
+            for(let x=0; x<canvas.width; x+=density) {
+                const idx = (y * canvas.width + x) * 4;
+                if(imgData[idx] > 128) { 
+                    // Convert pixel coords to WebGL 3D space
+                    const px = (x - canvas.width/2) * 0.016;
+                    const py = -(y - canvas.height/2) * 0.016;
+                    textCoords.push({x: px, y: py});
+                }
+            }
+        }
+
+        if(textCoords.length === 0) return;
+
+        // 2. Assign the 20,000 particles randomly to the extracted text coordinates
+        const newTargetPos = new Float32Array(NUM_PARTICLES * 3);
+        for(let i=0; i<NUM_PARTICLES; i++) {
+            const coord = textCoords[Math.floor(Math.random() * textCoords.length)];
+            
+            // Add spherical volume to the flat text so it's a 3D structure
+            const r = Math.cbrt(Math.random()) * 0.25; 
+            const theta = Math.random() * 2 * Math.PI;
+            const phi = Math.acos(2 * Math.random() - 1);
+            
+            newTargetPos[i*3] = coord.x + r * Math.sin(phi) * Math.cos(theta);
+            newTargetPos[i*3+1] = coord.y + r * Math.sin(phi) * Math.sin(theta);
+            newTargetPos[i*3+2] = r * Math.cos(phi) + (Math.random()-0.5)*0.8; // Z-depth extrusion
+        }
+
+        // 3. Bake current interpolated positions into Start, and feed Target to End
+        const currentMorph = uniforms.uMorph.value;
+        for(let i=0; i<NUM_PARTICLES*3; i++) {
+            startAttr.array[i] = startAttr.array[i] + (endAttr.array[i] - startAttr.array[i]) * currentMorph;
+            endAttr.array[i] = newTargetPos[i];
+        }
+        
+        startAttr.needsUpdate = true;
+        endAttr.needsUpdate = true;
+        uniforms.uMorph.value = 0;
+        
+        // 4. GSAP transition between states
+        gsap.killTweensOf(uniforms.uMorph);
+        gsap.to(uniforms.uMorph, {
+            value: 1,
+            duration: 2.0,
+            ease: "power3.inOut",
+            onUpdate: invalidate // Request frames manually during animation for battery saving
+        });
+
+    }, [text]);
+
+    // Used to damp mouse movements over time
+    const targetMouse = useRef(new THREE.Vector3(999, 999, 999));
+
+    useFrame((state) => {
+        uniforms.uTime.value = state.clock.elapsedTime;
+        
+        const dist = uniforms.uMouse.value.distanceTo(targetMouse.current);
+        if (dist > 0.01) {
+            uniforms.uMouse.value.lerp(targetMouse.current, 0.1);
+            invalidate(); // Keep waking up the frame loop until lerp settles
+        }
+    });
+
+    return (
+        <group>
+            {/* Invisible plane perfectly tracks 3D mouse intersection precisely at z=0 */}
+            <mesh 
+                visible={false} 
+                onPointerMove={(e) => {
+                    targetMouse.current.copy(e.point);
+                    invalidate(); 
+                }}
+                onPointerOut={() => {
+                    targetMouse.current.set(999,999,999);
+                    invalidate(); 
+                }}
+            >
+                <planeGeometry args={[100, 100]} />
+            </mesh>
+
+            <instancedMesh ref={meshRef} args={[null, null, NUM_PARTICLES]}>
+                <sphereGeometry args={[0.035, 6, 6]}>
+                    <instancedBufferAttribute attach="attributes-aPositionStart" args={[spherePositions, 3]} />
+                    <instancedBufferAttribute attach="attributes-aPositionEnd" args={[spherePositions, 3]} />
+                </sphereGeometry>
+                
+                <shaderMaterial 
+                    ref={materialRef}
+                    uniforms={uniforms}
+                    transparent={true}
+                    depthWrite={false}
+                    blending={THREE.AdditiveBlending}
+                    vertexShader={`
+                        uniform float uTime;
+                        uniform float uMorph;
+                        uniform vec3 uMouse;
+                        attribute vec3 aPositionStart;
+                        attribute vec3 aPositionEnd;
+                        varying vec3 vPos;
+                        
+                        // Fake fast pseudo-random noise for WebGL
+                        float hash(float n) { return fract(sin(n) * 1e4); }
+                        
+                        void main() {
+                            vec3 basePos = mix(aPositionStart, aPositionEnd, uMorph);
+                            
+                            // Mild particle wavering/swirling over time
+                            float n = hash(basePos.x + basePos.y * 10.0 + basePos.z * 100.0);
+                            vec3 idleSwirl = vec3(
+                                sin(uTime * 0.8 + n * 10.0),
+                                cos(uTime * 0.9 + n * 10.0),
+                                sin(uTime * 0.7 + n * 10.0)
+                            ) * 0.08;
+                            
+                            vec3 pos = basePos + idleSwirl;
+                            
+                            // Mouse Repellent Force Field
+                            float dist = distance(pos, uMouse);
+                            float force = smoothstep(3.5, 0.0, dist);
+                            
+                            // Pushes outwards and strongly towards the camera (Z axis)
+                            vec3 dir = normalize(pos - uMouse + vec3(0.001));
+                            dir.z += 1.2; 
+                            dir = normalize(dir);
+                            
+                            pos += dir * force * 1.8;
+                            
+                            // Transform the tiny sphere vertices
+                            vec3 localPos = position * (0.5 + 1.2 * n); // Random variance in particle size
+                            
+                            gl_Position = projectionMatrix * modelViewMatrix * vec4(pos + localPos, 1.0);
+                            vPos = pos;
+                        }
+                    `}
+                    fragmentShader={`
+                        uniform vec3 uColorCyan;
+                        uniform vec3 uColorGold;
+                        varying vec3 vPos;
+                        
+                        // Fast grain noise
+                        float random(vec2 st) {
+                            return fract(sin(dot(st.xy, vec2(12.9898,78.233))) * 43758.5453123);
+                        }
+
+                        void main() {
+                            // Gold blend at the base
+                            // The initial sphere goes down to Y -4, Text goes to Y -1.5 approx.
+                            float yMix = smoothstep(-2.5, 1.0, vPos.y); 
+                            vec3 color = mix(uColorGold, uColorCyan, yMix);
+                            
+                            // Grain texture added to surface
+                            color -= random(gl_FragCoord.xy) * 0.15;
+                            
+                            // Organic additive glow
+                            gl_FragColor = vec4(color, 0.45);
+                        }
+                    `}
+                />
+            </instancedMesh>
+        </group>
+    );
+}
+
+function App() {
+    const [text, setText] = useState("");
+    const inputRef = useRef();
+
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        const val = inputRef.current.value.trim();
+        if(val) setText(val);
+    };
+
+    return (
+        <React.Fragment>
+            <div className="canvas-container">
+                {/* frameloop="demand" limits CPU/GPU draw calls to only when animating! */}
+                <Canvas dpr={[1, 1.5]} frameloop="demand" camera={{ position: [0, 0, 13], fov: 45 }}>
+                    <color attach="background" args={['#0a0a0a']} />
+                    <ParticleSystem text={text} />
+                </Canvas>
+            </div>
+            <div className="ui-container">
+                <form onSubmit={handleSubmit} style={{display:'flex', width:'100%'}}>
+                    <input ref={inputRef} placeholder="AztarG" />
+                    <button type="submit">DEVAM ET</button>
+                </form>
+            </div>
+        </React.Fragment>
+    );
+}
+
+const root = createRoot(document.getElementById('root'));
+root.render(<App />);
+</script>
+</body>
+</html>
