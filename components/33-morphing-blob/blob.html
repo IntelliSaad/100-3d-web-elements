@@ -46,7 +46,7 @@
         import React, { useRef, Suspense } from 'react';
         import { createRoot } from 'react-dom/client';
         import { Canvas, useFrame } from '@react-three/fiber';
-        import { MeshTransmissionMaterial, Float, Environment, Text } from '@react-three/drei';
+        import { MeshDistortMaterial, Float } from '@react-three/drei';
 
         const Blob = () => {
             const materialRef = useRef(null);
@@ -66,27 +66,28 @@
                     // Slow baseline ambient rotation
                     groupRef.current.rotation.z += delta * 0.15;
                 }
+                
+                // Animate distortion speed organically
+                if (materialRef.current) {
+                    materialRef.current.distort = 0.4 + Math.sin(state.clock.elapsedTime * 0.5) * 0.15;
+                }
             });
 
             return (
                 <Float speed={1.5} rotationIntensity={1.5} floatIntensity={2}>
                     <group ref={groupRef}>
                         <mesh scale={2.5}>
-                            <sphereGeometry args={[1, 64, 64]} /> {/* Increased detail for better glass refraction */}
-                            <MeshTransmissionMaterial
+                            {/* Low poly for massive performance boost */}
+                            <sphereGeometry args={[1, 32, 32]} /> 
+                            <MeshDistortMaterial
                                 ref={materialRef}
-                                transmission={1.0}
-                                roughness={0.1}
-                                ior={1.5}
-                                thickness={2.5}
-                                chromaticAberration={0.05}
-                                distortion={0.8}
-                                distortionScale={0.4}
-                                temporalDistortion={0.15} /* This creates the morphing liquid surface */
-                                resolution={128} /* Capped for performance per requirements */
-                                color="#ffffff"
-                                attenuationColor="#8b5cf6"
-                                attenuationDistance={5}
+                                color="#2e1065" // Deep violet base
+                                emissive="#0f0524" // Dark core
+                                roughness={0.1} // Glossy
+                                metalness={0.9} // Highly reflective
+                                clearcoat={1} // Liquid-like slick outer layer
+                                clearcoatRoughness={0.1}
+                                speed={2} // Undulation speed
                             />
                         </mesh>
                     </group>
@@ -99,13 +100,10 @@
                 <Canvas camera={{ position: [0, 0, 8], fov: 45 }} dpr={[1, 1.5]}>
                     <color attach="background" args={['transparent']} />
                     
-                    {/* Basic, cheap lighting strategy */}
+                    {/* Basic, performant lighting strategy */}
                     <ambientLight intensity={0.5} />
-                    <directionalLight position={[10, 10, 5]} intensity={2} color="#8b5cf6" />
-                    <directionalLight position={[-10, -10, -5]} intensity={1} color="#0ea5e9" />
-                    
-                    {/* Realistic reflection map for the glass */}
-                    <Environment preset="city" />
+                    <directionalLight position={[10, 10, 5]} intensity={2} color="#c084fc" />
+                    <directionalLight position={[-10, -10, -5]} intensity={2} color="#38bdf8" />
 
                     <Suspense fallback={null}>
                         <Blob />

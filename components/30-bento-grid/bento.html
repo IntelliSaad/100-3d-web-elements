@@ -20,8 +20,8 @@
         }
     </script>
     <style>
-        body { margin: 0; background-color: #0a0a0a; color: white; overflow: hidden; }
-        #root { height: 100vh; display: flex; align-items: center; justify-content: center; padding: 2rem; }
+        body { margin: 0; background-color: #0a0a0a; color: white; overflow-x: hidden; overflow-y: auto; }
+        #root { min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 2rem 0; overflow-x: hidden; }
         
         /* Glassmorphism utilities */
         .glass-panel {
@@ -201,7 +201,31 @@
 
         const App = () => {
             return (
-                <div className="w-full max-w-6xl mx-auto h-[800px] grid grid-cols-4 grid-rows-3 gap-6 p-4">
+                <div className="w-full flex flex-col items-center">
+                    
+                    {/* Hero Scroller Section */}
+                    <div className="h-screen w-full flex flex-col items-center justify-center relative">
+                        <h1 className="text-5xl md:text-7xl font-black mb-4 tracking-tighter text-center">
+                            The Bento Grid
+                        </h1>
+                        <p className="text-neutral-500 uppercase tracking-[0.3em] text-sm mb-12">
+                            Scroll down to explore
+                        </p>
+                        
+                        {/* Bouncing scroll indicator */}
+                        <motion.div 
+                            animate={{ y: [0, 10, 0] }}
+                            transition={{ repeat: Infinity, duration: 1.5, ease: "easeInOut" }}
+                            className="absolute bottom-12 text-neutral-600"
+                        >
+                            <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                            </svg>
+                        </motion.div>
+                    </div>
+
+                    {/* Bento Grid Container */}
+                    <div className="w-full max-w-6xl mx-auto h-[800px] grid grid-cols-4 grid-rows-3 gap-6 p-4 mb-32 relative z-10">
                     
                     {/* Hero Feature (Spans 2x2) */}
                     <BentoCard className="col-span-2 row-span-2" shapeType="dodecahedron" shapeColor="#818cf8">
@@ -293,6 +317,7 @@
                         </div>
                     </BentoCard>
 
+                    </div>
                 </div>
             );
         };
