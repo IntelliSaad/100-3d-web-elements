@@ -135,17 +135,21 @@ void main() {
     float lenQ = length(q);
     float lenR = length(r);
 
-    // Vibrant Aurora Colors (guaranteed to render brightly even if fbm fails to small numbers)
-    vec3 colorBase = vec3(0.1, 0.05, 0.3); // Deep purple base
-    vec3 colorPink = vec3(1.0, 0.2, 0.6);  // Neon pink
-    vec3 colorCyan = vec3(0.0, 0.8, 0.8);  // Cyan
+    // Vibrant Aurora Colors (enhanced for extreme highlighting)
+    vec3 colorBase = vec3(0.12, 0.04, 0.35); // Richer deep purple
+    vec3 colorPink = vec3(1.0, 0.3, 0.8);    // Brighter neon pink
+    vec3 colorCyan = vec3(0.0, 1.0, 1.0);    // Pure cyan
+    vec3 colorHighlight = vec3(1.0, 0.9, 0.7);// Bright glowing gold/white for peaks
     
-    vec3 finalColor = mix(colorBase, colorPink, clamp(f * 1.5, 0.0, 1.0));
-    finalColor = mix(finalColor, colorCyan, clamp(lenQ * 0.8, 0.0, 1.0));
-    finalColor = mix(finalColor, vec3(0.2, 0.0, 0.8), clamp(lenR * 0.7, 0.0, 1.0));
+    vec3 finalColor = mix(colorBase, colorPink, clamp(f * 1.8, 0.0, 1.0));
+    finalColor = mix(finalColor, colorCyan, clamp(lenQ * 1.2, 0.0, 1.0));
+    finalColor = mix(finalColor, vec3(0.3, 0.1, 0.9), clamp(lenR * 0.8, 0.0, 1.0));
 
-    // Increase overall brightness multiplicatively to guarantee visibility
-    finalColor *= (f + 0.5) * 1.5;
+    // Add glowing highlights for the highest peaks of the noise
+    finalColor += colorHighlight * smoothstep(0.55, 1.0, f) * 0.9;
+
+    // Massive brightness boost to ensure visibility on all monitor configurations
+    finalColor *= (f + 0.8) * 2.2;
 
     // Vignette mapped manually to center of UV
     float distToCenter = length(vUv - vec2(0.5, 0.5));
