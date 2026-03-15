@@ -42,7 +42,10 @@
         "imports": {
             "react": "https://esm.sh/react@18.2.0",
             "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
-            "framer-motion": "https://esm.sh/framer-motion@11.0.8?external=react,react-dom"
+            "framer-motion": "https://esm.sh/framer-motion@11.0.8?external=react,react-dom",
+            "three": "https://esm.sh/three@0.160.0",
+            "@react-three/fiber": "https://esm.sh/@react-three/fiber@8.15.14?external=react,react-dom,three",
+            "@react-three/drei": "https://esm.sh/@react-three/drei@9.96.1?external=react,react-dom,three,@react-three/fiber"
         }
     }
     </script>
@@ -57,65 +60,94 @@
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
     <script type="text/babel" data-type="module">
-        import React, { useRef } from 'react';
+        import React, { useRef, Suspense } from 'react';
         import { createRoot } from 'react-dom/client';
         import { motion, useScroll, useTransform, useSpring } from 'framer-motion';
+        import * as THREE from 'three';
+        import { Canvas, useFrame } from '@react-three/fiber';
+        import { Text3D, Center } from '@react-three/drei';
+
+        const CameraFly = ({ scrollProgress }) => {
+            useFrame((state) => {
+                // Fly the camera from z=15 (zoomed out) to z=-2 (passed completely through the text)
+                const startZ = 15;
+                const endZ = -2;
+                state.camera.position.z = startZ - scrollProgress.get() * (startZ - endZ);
+                
+                // Add a very subtle tracking sway
+                state.camera.position.x = Math.sin(scrollProgress.get() * Math.PI) * 0.5;
+                state.camera.position.y = Math.cos(scrollProgress.get() * Math.PI) * 0.2 - 0.2;
+                state.camera.lookAt(0, 0, endZ);
+            });
+            return null;
+        }
 
         const LookingGlass = () => {
             const containerRef = useRef(null);
             
-            // We use a 300vh container to act as the scroll track.
-            // When the user scrolls through this container, the inner text scales up.
             const { scrollYProgress } = useScroll({
                 target: containerRef,
                 offset: ["start start", "end end"]
             });
 
-            // Add a tiny bit of smoothing to the scroll for premium feel
             const smoothProgress = useSpring(scrollYProgress, {
                 damping: 25,
                 stiffness: 120,
                 mass: 0.5
             });
 
-            // Massive scale factor - from 1 to 100 ensures we go completely through the geometry "wall"
-            const scale = useTransform(smoothProgress, [0, 0.8, 1], [1, 50, 150]);
-            
-            // Fade out the stroke right at the end to transition smoothly into the next section
-            const opacity = useTransform(smoothProgress, [0.8, 0.95], [1, 0]);
+            // Fade in the background content perfectly as we pass through the hole
+            const contentOpacity = useTransform(smoothProgress, [0.85, 0.95], [0, 1]);
+
+            // Highly optimized lightweight font for Text3D
+            const FONT_URL = "https://raw.githubusercontent.com/mrdoob/three.js/master/examples/fonts/helvetiker_bold.typeface.json";
 
             return (
                 <div ref={containerRef} className="relative w-full h-[300vh] bg-neutral-950">
                     
-                    {/* The sticky container that holds the pinned content during scroll */}
-                    <div className="sticky top-0 left-0 w-full h-screen overflow-hidden flex items-center justify-center bg-black z-20">
-                        <motion.h1 
-                            className="hollow-text font-display text-[25vw] leading-none tracking-tight select-none will-change-transform"
-                            style={{ 
-                                scale,
-                                opacity,
-                                // SCOPE is 5 letters. 'O' is the middle letter.
-                                // We offset transform origin slightly to perfectly hit the center counter of the 'O' in the Anton font based on typical rendering metrics.
-                                transformOrigin: "50% 55%" 
-                            }}
-                        >
-                            SCOPE
-                        </motion.h1>
+                    {/* The sticky 3D container that holds the pinned canvas */}
+                    <div className="sticky top-0 left-0 w-full h-screen overflow-hidden flex items-center justify-center bg-black z-20 pointer-events-none">
+                        <Canvas camera={{ position: [0, 0, 15], fov: 45 }}>
+                            <CameraFly scrollProgress={smoothProgress} />
+                            
+                            <Suspense fallback={null}>
+                                <Center>
+                                    <Text3D 
+                                        font={FONT_URL}
+                                        size={5}
+                                        height={0.5} 
+                                        curveSegments={4} // Super low for performance
+                                        bevelEnabled={false}
+                                    >
+                                        SCOPE
+                                        {/* Pure basic material constraints as requested */}
+                                        <meshBasicMaterial 
+                                            color="#ffffff" 
+                                            wireframe={true} 
+                                            transparent 
+                                            opacity={0.8}
+                                        />
+                                    </Text3D>
+                                </Center>
+                            </Suspense>
+                        </Canvas>
                     </div>
 
-                    {/* The hidden content section revealed after zooming "Through" the text */}
-                    {/* We position it absolute within the track, only visible at tracking end when the above overlay zooms past camera */}
-                    <div className="absolute top-[200vh] left-0 w-full h-screen flex items-center justify-center z-10 bg-gradient-to-br from-indigo-950 to-neutral-950">
+                    {/* The hidden content section revealed after zooming physically "Through" the text */}
+                    {/* Positioned fixed so when the canvas fades/passes, this is revealed fully visible underneath */}
+                    <motion.div 
+                        style={{ opacity: contentOpacity }}
+                        className="fixed top-0 left-0 w-full h-screen flex items-center justify-center z-10 bg-gradient-to-br from-indigo-950 to-neutral-950"
+                    >
                         <div className="text-center max-w-2xl px-6">
                             <h2 className="text-5xl md:text-7xl font-bold mb-6 tracking-tighter mix-blend-screen text-white">
                                 The Other Side
                             </h2>
                             <p className="text-xl text-indigo-200/60 leading-relaxed font-light">
-                                Hardware accelerated CSS transforms allow us to create infinitely deep spatial environments without a single line of WebGL code. 
-                                Instantly loaded, perfectly smooth, natively responsive.
+                                Pure hardware-accelerated WebGL spatial environments achieved through Frame Motion tied natively to the Three.js camera matrix.
                             </p>
                         </div>
-                    </div>
+                    </motion.div>
                 </div>
             );
         };
