@@ -65,7 +65,7 @@
         import { createRoot } from 'react-dom/client';
         import { motion, useMotionValue, useSpring, useTransform } from 'framer-motion';
         import { Canvas, useFrame, useThree } from '@react-three/fiber';
-        import { RoundedBox, MeshTransmissionMaterial, Text, Environment } from '@react-three/drei';
+        import { RoundedBox, Text } from '@react-three/drei';
 
         const Badge = ({ mouseX, mouseY, isHovered }) => {
             const groupRef = useRef();
@@ -119,16 +119,17 @@
                 <group ref={groupRef}>
                     {/* The Physical Acrylic Block */}
                     <RoundedBox args={[3.0, 4.6, 0.5]} radius={0.15} smoothness={4}>
-                        <MeshTransmissionMaterial 
+                        <meshPhysicalMaterial 
+                            color="#ffffff"
+                            metalness={0.2}
                             roughness={0.2}
-                            transmission={1}
-                            thickness={1.5}
-                            chromaticAberration={0.06}
-                            iridescence={0.4}
+                            transparent={true}
+                            opacity={0.15}
+                            clearcoat={1.0}
+                            clearcoatRoughness={0.1}
+                            iridescence={0.5}
                             iridescenceIOR={1.3}
-                            clearcoat={1}
-                            color="#fff"
-                            background={new React.Suspense()}
+                            depthWrite={false}
                         />
                     </RoundedBox>
                     
@@ -208,14 +209,12 @@
                     {/* Highly Optimized R3F Scene */}
                     <div className="w-full h-full cursor-crosshair">
                         <Canvas frameloop="demand" camera={{ position: [0, 0, 6], fov: 45 }} dpr={[1, 1.5]}>
-                            <ambientLight intensity={0.5} />
+                            <ambientLight intensity={0.8} />
                             
-                            {/* Directional styling lights to highlight the glass bevels */}
-                            <spotLight position={[10, 10, 5]} angle={0.2} penumbra={1} intensity={2} color="#ffffff" />
-                            <spotLight position={[-10, -10, 5]} angle={0.2} penumbra={1} intensity={1} color="#8b5cf6" />
-                            
-                            {/* Extremely cheap, low-res Environment map for realistic glass reflection */}
-                            <Environment preset="city" resolution={128} />
+                            {/* Directional styling lights to highlight the glass bevels without HDRI */}
+                            <spotLight position={[10, 10, 5]} angle={0.2} penumbra={1} intensity={3} color="#ffffff" />
+                            <spotLight position={[-10, -10, 5]} angle={0.2} penumbra={1} intensity={2} color="#8b5cf6" />
+                            <pointLight position={[0, 0, 5]} intensity={1} color="#ffffff" />
                             
                             <Badge mouseX={mouseX} mouseY={mouseY} isHovered={isHovered} />
                         </Canvas>
