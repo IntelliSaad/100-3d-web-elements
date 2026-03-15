@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Transformative Procedural DNA sequence</title>
+    <title>Procedural Shape-Shifting Swarm</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -40,6 +40,7 @@
     </script>
 
     <script>
+        // Suppress warnings for clean devtools
         const origWarn = console.warn;
         console.warn = function(...args) {
             if (args[0] && typeof args[0] === 'string' && (args[0].includes('in-browser Babel transformer') || args[0].includes('cdn.tailwindcss.com should not be used in production'))) return;
@@ -49,244 +50,214 @@
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
     <script type="text/babel" data-type="module">
-        import React, { useRef, useMemo, useEffect, useState } from 'react';
+        import React, { useRef, useMemo, useEffect } from 'react';
         import { createRoot } from 'react-dom/client';
         import * as THREE from 'three';
         import { Canvas, useFrame, useThree } from '@react-three/fiber';
 
-        const PARTICLE_COUNT = 400; // per strand, 800 total
-        const STRAND_RADIUS = 2.0;
-        const HEIGHT_SPREAD = 0.05;
-        const FREQUENCY = 0.4;
-        const TOTAL_LOOP = 15; // Represents the 4-phase 15-second loop
+        const NUM = 3000; // Hyper-dense particle count running flawlessly at 60fps
 
-        // Lightweight interpolation physics
-        const easeInOutCubic = t => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
-        const easeOutQuad = t => t * (2 - t);
+        // Shape Generators (returns raw Float32Arrays for extreme JS performance)
+        const getSphereTargets = () => {
+            const pos = new Float32Array(NUM * 3);
+            const col = new Float32Array(NUM * 3);
+            const c1 = new THREE.Color("#0ea5e9"); // Cyan
+            const c2 = new THREE.Color("#fcd34d"); // Warm Sun Yellow
+            const phi = Math.PI * (3 - Math.sqrt(5));
+            for(let i=0; i<NUM; i++) {
+                const y = 1 - (i / (NUM - 1)) * 2;
+                // Add soft fuzz to the radius for a glowing cloud effect
+                const radius = Math.sqrt(1 - y * y) * (7 + (Math.random() - 0.5)); 
+                const theta = phi * i;
+                
+                pos[i*3] = Math.cos(theta) * radius;
+                pos[i*3+1] = y * (7 + (Math.random() - 0.5));
+                pos[i*3+2] = Math.sin(theta) * radius;
 
-        const TransformativeDNA = () => {
-            const instancedMeshRef = useRef();
-            const linesRef = useRef();
+                const mixed = c1.clone().lerp(c2, (y + 1)/2);
+                col[i*3] = mixed.r; col[i*3+1] = mixed.g; col[i*3+2] = mixed.b;
+            }
+            return { pos, col };
+        };
+
+        const getTorusTargets = () => {
+            const pos = new Float32Array(NUM * 3);
+            const col = new Float32Array(NUM * 3);
+            const c1 = new THREE.Color("#ec4899"); // Pink
+            const c2 = new THREE.Color("#8b5cf6"); // Purple
+            for(let i=0; i<NUM; i++) {
+                const t = (i / NUM) * Math.PI * 2;
+                const p = 3; const q = 4;
+                const r = Math.cos(q * t) + 2;
+                
+                const spread = 1.0; // Thickness of the tube
+                pos[i*3] = (r * Math.cos(p * t)) * 2.5 + (Math.random()-0.5)*spread;
+                pos[i*3+1] = (r * Math.sin(p * t)) * 2.5 + (Math.random()-0.5)*spread;
+                pos[i*3+2] = (-Math.sin(q * t)) * 2.5 + (Math.random()-0.5)*spread;
+
+                const mixed = c1.clone().lerp(c2, Math.random()); // Shimmering gradient
+                col[i*3] = mixed.r; col[i*3+1] = mixed.g; col[i*3+2] = mixed.b;
+            }
+            return { pos, col };
+        };
+
+        const getCubeTargets = () => {
+            const pos = new Float32Array(NUM * 3);
+            const col = new Float32Array(NUM * 3);
+            const c1 = new THREE.Color("#10b981"); // Emerald
+            const c2 = new THREE.Color("#0284c7"); // Ocean Blue
+            const side = Math.ceil(Math.cbrt(NUM));
+            for(let i=0; i<NUM; i++) {
+                const x = (i % side) - side/2;
+                const y = (Math.floor(i / side) % side) - side/2;
+                const z = (Math.floor(i / (side * side))) - side/2;
+                
+                // Add tiny jitter to make it feel "organic"
+                const jitter = 0.2;
+                pos[i*3] = x * 1.5 + (Math.random()-0.5)*jitter;
+                pos[i*3+1] = y * 1.5 + (Math.random()-0.5)*jitter;
+                pos[i*3+2] = z * 1.5 + (Math.random()-0.5)*jitter;
+
+                const mixed = c1.clone().lerp(c2, (x + side/2)/side);
+                col[i*3] = mixed.r; col[i*3+1] = mixed.g; col[i*3+2] = mixed.b;
+            }
+            return { pos, col };
+        };
+
+        const getGalaxyTargets = () => {
+            const pos = new Float32Array(NUM * 3);
+            const col = new Float32Array(NUM * 3);
+            const c1 = new THREE.Color("#f97316"); // Orange
+            const c2 = new THREE.Color("#eab308"); // Gold
+            const arms = 5;
+            for(let i=0; i<NUM; i++) {
+                const armIndex = i % arms;
+                const r = Math.random() * 18;
+                const angle = r * 0.4 + (armIndex * Math.PI * 2 / arms) + (Math.random() - 0.5)*0.5;
+                
+                pos[i*3] = Math.cos(angle) * r;
+                pos[i*3+1] = (Math.random() - 0.5) * (18 - r) * 0.25; // Bulge at center
+                pos[i*3+2] = Math.sin(angle) * r;
+
+                const mixed = c1.clone().lerp(c2, r/18);
+                col[i*3] = mixed.r; col[i*3+1] = mixed.g; col[i*3+2] = mixed.b;
+            }
+            return { pos, col };
+        };
+
+        const MorphingSwarm = () => {
+            const meshRef = useRef();
             const groupRef = useRef();
 
-            const { basePositions, chaosPositions, colors, lineIndices, posArray, colArray } = useMemo(() => {
-                const basePositions = [];
-                const chaosPositions = [];
-                const colors = [];
-                const lineIndices = [];
+            // Store heavily optimized memory buffers
+            const { buffers, shapes } = useMemo(() => {
+                const shapes = [getSphereTargets(), getTorusTargets(), getCubeTargets(), getGalaxyTargets()];
+                
+                // Active buffers that get rendered
+                const currentPos = new Float32Array(shapes[0].pos);
+                const currentCol = new Float32Array(shapes[0].col);
 
-                const color1 = new THREE.Color("#0bd3d3"); // Cyan
-                const color2 = new THREE.Color("#f890e7"); // Magenta
-
-                for (let i = 0; i < PARTICLE_COUNT; i++) {
-                    const t = i * FREQUENCY;
-                    const y = (i - PARTICLE_COUNT / 2) * HEIGHT_SPREAD; // Spread evenly on Y axis
-                    const normalizedY = i / PARTICLE_COUNT;
-                    
-                    // Strand 1
-                    const x1 = Math.cos(t) * STRAND_RADIUS;
-                    const z1 = Math.sin(t) * STRAND_RADIUS;
-                    basePositions.push({ x: x1, y, z: z1, strand: 0, normalizedY });
-                    colors.push(color1.r, color1.g, color1.b);
-
-                    // Strand 2
-                    const x2 = Math.cos(t + Math.PI) * STRAND_RADIUS;
-                    const z2 = Math.sin(t + Math.PI) * STRAND_RADIUS;
-                    basePositions.push({ x: x2, y, z: z2, strand: 1, normalizedY });
-                    colors.push(color2.r, color2.g, color2.b);
-
-                    // Random chaotic destinations mapped for phase 3
-                    chaosPositions.push({
-                        x: (Math.random() - 0.5) * 40,
-                        y: y + (Math.random() - 0.5) * 20,
-                        z: (Math.random() - 0.5) * 40,
-                        speed: 0.2 + Math.random() * 0.8
-                    });
-                    chaosPositions.push({
-                        x: (Math.random() - 0.5) * 40,
-                        y: y + (Math.random() - 0.5) * 20,
-                        z: (Math.random() - 0.5) * 40,
-                        speed: 0.2 + Math.random() * 0.8
-                    });
-
-                    // Add base pairs (lines) every 4 particles
-                    if (i % 4 === 0) {
-                        const idx1 = i * 2;
-                        const idx2 = i * 2 + 1;
-                        lineIndices.push({ idx1, idx2, normalizedY });
-                    }
-                }
-
-                const numPairs = lineIndices.length;
-                const posArray = new Float32Array(numPairs * 6);
-                const colArray = new Float32Array(numPairs * 6);
-
-                return { basePositions, chaosPositions, colors: new Float32Array(colors), lineIndices, posArray, colArray };
+                return { buffers: { currentPos, currentCol }, shapes };
             }, []);
 
-            const tempObject = useMemo(() => new THREE.Object3D(), []);
+            const dummy = useMemo(() => new THREE.Object3D(), []);
 
-            useFrame((state) => {
+            useFrame((state, delta) => {
                 const time = state.clock.elapsedTime;
                 
-                // Continuous slow rotation
-                if (groupRef.current) {
-                    groupRef.current.rotation.y = time * 0.2;
-                }
+                // 1. Logic Phase: Calculate current target shape (switches every 4 seconds)
+                const phaseTime = 4;
+                const activePhase = Math.floor(time / phaseTime) % 4;
+                const targetPos = shapes[activePhase].pos;
+                const targetCol = shapes[activePhase].col;
 
-                const loopTime = time % TOTAL_LOOP; // 0 to 15 seconds
+                const { currentPos, currentCol } = buffers;
 
-                const cyan = new THREE.Color("#0bd3d3");
-                const magenta = new THREE.Color("#f890e7");
+                // 2. High-Speed Fluid Mutator: Smoothly lerp towards active targets
+                const LERP_SPEED = Math.min(0.08, delta * 5); // snappy but buttery smooth
 
-                // Update particles
-                for (let i = 0; i < basePositions.length; i++) {
-                    const base = basePositions[i];
-                    const chaos = chaosPositions[i];
+                for(let i=0; i<NUM; i++) {
+                    const i3 = i * 3;
                     
-                    let explosionProgress = 0;
-                    
-                    // Phase State Machine
-                    // 0-5s: Idle (progress = 0)
-                    // 5-8s: Explode bottom-up ripple
-                    // 8-12s: Chaos drifting
-                    // 12-15s: Re-assemble smoothly
-                    
-                    if (loopTime >= 5 && loopTime < 8) {
-                        const rawT = (loopTime - 5) / 3; 
-                        const delay = base.normalizedY * 0.6; // Bottom-up delay up to 0.6
-                        const p = Math.max(0, Math.min(1, (rawT - delay) / 0.4));
-                        explosionProgress = easeOutQuad(p);
-                    } else if (loopTime >= 8 && loopTime < 12) {
-                        explosionProgress = 1;
-                    } else if (loopTime >= 12 && loopTime < 15) {
-                        const rawT = (loopTime - 12) / 3;
-                        // Everyone assembles universally together for a dramatic snap
-                        explosionProgress = 1 - easeInOutCubic(Math.min(1, rawT));
+                    // Seamless hardware morphing 
+                    currentPos[i3] += (targetPos[i3] - currentPos[i3]) * LERP_SPEED;
+                    currentPos[i3+1] += (targetPos[i3+1] - currentPos[i3+1]) * LERP_SPEED;
+                    currentPos[i3+2] += (targetPos[i3+2] - currentPos[i3+2]) * LERP_SPEED;
+
+                    currentCol[i3] += (targetCol[i3] - currentCol[i3]) * LERP_SPEED;
+                    currentCol[i3+1] += (targetCol[i3+1] - currentCol[i3+1]) * LERP_SPEED;
+                    currentCol[i3+2] += (targetCol[i3+2] - currentCol[i3+2]) * LERP_SPEED;
+
+                    // Add organic, localized noise/breathing
+                    let yOffset = 0;
+                    if (activePhase === 2) {
+                        // The 'Cube' phase breathes like an undulating data-wave
+                        yOffset = Math.sin(time * 3 + currentPos[i3] * 0.5) * 1.5;
                     }
 
-                    // Float organically while in chaos based on node's unique speed matrix
-                    const chaosOscillation = (Math.sin(time * chaos.speed + i) * 2) * explosionProgress;
+                    dummy.position.set(currentPos[i3], currentPos[i3+1] + yOffset, currentPos[i3+2]);
                     
-                    const curX = THREE.MathUtils.lerp(base.x, chaos.x + chaosOscillation, explosionProgress);
-                    const curY = THREE.MathUtils.lerp(base.y, chaos.y + chaosOscillation, explosionProgress);
-                    const curZ = THREE.MathUtils.lerp(base.z, chaos.z + chaosOscillation, explosionProgress);
-
-                    tempObject.position.set(curX, curY, curZ);
-
-                    // GSAP-like dynamic scaling effect during the explosion shockwave (scale bursts up, drops down)
+                    // Calculate individual sizes based on distance to core for the galaxy phase
                     let scale = 1;
-                    if (loopTime >= 5 && loopTime < 8) {
-                        const rawT = (loopTime - 5) / 3;
-                        const delay = base.normalizedY * 0.6;
-                        const p = Math.max(0, Math.min(1, (rawT - delay) / 0.4));
-                        if (p > 0 && p < 1) scale = 1 + Math.sin(p * Math.PI) * 2; // Expand dramatically
-                    } else if (loopTime >= 12 && loopTime < 15) {
-                         const rawT = (loopTime - 12) / 3;
-                         const p = Math.min(1, rawT);
-                         scale = Math.max(0.01, 1 - Math.sin(p * Math.PI) * 0.5); // Shrink slightly before re-attachment
+                    if(activePhase === 3) {
+                        scale = Math.max(0.2, 2.0 - dummy.position.length() * 0.1);
                     }
-                    tempObject.scale.setScalar(scale);
-                    
-                    tempObject.updateMatrix();
-                    instancedMeshRef.current.setMatrixAt(i, tempObject.matrix);
+                    dummy.scale.setScalar(scale);
 
-                    // Store current positions so the line segments can track them
-                    base.currentX = curX;
-                    base.currentY = curY;
-                    base.currentZ = curZ;
-                }
-                
-                instancedMeshRef.current.instanceMatrix.needsUpdate = true;
-
-                // Update Line Segment Rungs
-                let pairIndex = 0;
-                for (const conn of lineIndices) {
-                    const p1 = basePositions[conn.idx1];
-                    const p2 = basePositions[conn.idx2];
-
-                    posArray[pairIndex * 6 + 0] = p1.currentX;
-                    posArray[pairIndex * 6 + 1] = p1.currentY;
-                    posArray[pairIndex * 6 + 2] = p1.currentZ;
-                    posArray[pairIndex * 6 + 3] = p2.currentX;
-                    posArray[pairIndex * 6 + 4] = p2.currentY;
-                    posArray[pairIndex * 6 + 5] = p2.currentZ;
-
-                    // Fade out the base pairs during the explosion ripple
-                    let opacity = 0.5;
-                    if (loopTime >= 5 && loopTime < 8) {
-                        const rawT = (loopTime - 5) / 3;
-                        const delay = conn.normalizedY * 0.6;
-                        opacity = 0.5 * (1 - Math.max(0, Math.min(1, (rawT - delay) / 0.4)));
-                    } else if (loopTime >= 8 && loopTime < 12) {
-                        opacity = 0;
-                    } else if (loopTime >= 12 && loopTime < 15) {
-                        const rawT = (loopTime - 12) / 3;
-                        opacity = 0.5 * easeInOutCubic(Math.min(1, rawT));
-                    }
-
-                    // Apply transparency natively via vertex colors
-                    colArray[pairIndex * 6 + 0] = cyan.r * opacity;
-                    colArray[pairIndex * 6 + 1] = cyan.g * opacity;
-                    colArray[pairIndex * 6 + 2] = cyan.b * opacity;
-                    colArray[pairIndex * 6 + 3] = magenta.r * opacity;
-                    colArray[pairIndex * 6 + 4] = magenta.g * opacity;
-                    colArray[pairIndex * 6 + 5] = magenta.b * opacity;
-
-                    pairIndex++;
+                    dummy.updateMatrix();
+                    meshRef.current.setMatrixAt(i, dummy.matrix);
                 }
 
-                // Push highly optimized buffer updates instantly
-                linesRef.current.geometry.attributes.position.needsUpdate = true;
-                linesRef.current.geometry.attributes.color.needsUpdate = true;
+                // Push buffers to GPU in a single massive dump
+                meshRef.current.instanceMatrix.needsUpdate = true;
+                meshRef.current.geometry.attributes.color.needsUpdate = true;
+
+                // Rotate the entire swarm continuously
+                if (groupRef.current) {
+                    groupRef.current.rotation.y += delta * 0.2;
+                    groupRef.current.rotation.x = Math.sin(time * 0.2) * 0.2;
+                }
             });
 
             return (
                 <group ref={groupRef}>
-                    <instancedMesh ref={instancedMeshRef} args={[null, null, PARTICLE_COUNT * 2]}>
-                        <sphereGeometry args={[0.08, 8, 8]}>
-                            <instancedBufferAttribute attach="attributes-color" args={[colors, 3]} />
-                        </sphereGeometry>
-                        {/* Additive blending makes particles look like glowing energy sources without heavy lights */}
-                        <meshBasicMaterial vertexColors toneMapped={false} blending={THREE.AdditiveBlending} depthWrite={false} transparent />
+                    <instancedMesh ref={meshRef} args={[null, null, NUM]}>
+                        {/* We use dodecahedron because 12 flat faces catch lighting angles better than perfect spheres while being massively cheaper on draw-call limits */}
+                        <dodecahedronGeometry args={[0.07, 0]}>
+                            <instancedBufferAttribute attach="attributes-color" args={[buffers.currentCol, 3]} />
+                        </dodecahedronGeometry>
+                        <meshBasicMaterial 
+                            vertexColors 
+                            toneMapped={false} 
+                            blending={THREE.AdditiveBlending} 
+                            depthWrite={false} 
+                            transparent 
+                            opacity={0.85} // prevents burn-out
+                        />
                     </instancedMesh>
-
-                    <lineSegments ref={linesRef}>
-                        <bufferGeometry>
-                            <bufferAttribute attach="attributes-position" count={posArray.length / 3} array={posArray} itemSize={3} usage={THREE.DynamicDrawUsage} />
-                            <bufferAttribute attach="attributes-color" count={colArray.length / 3} array={colArray} itemSize={3} usage={THREE.DynamicDrawUsage} />
-                        </bufferGeometry>
-                        <lineBasicMaterial vertexColors toneMapped={false} blending={THREE.AdditiveBlending} transparent depthWrite={false} />
-                    </lineSegments>
                 </group>
             );
         };
 
         const Scene = () => {
             const { camera, pointer } = useThree();
-            const groupRef = useRef();
 
-            // Performant damped Parallax tracking
+            // Extremely subtle Parallax background tracking
             useFrame(() => {
-                const targetX = pointer.x * 5;
-                const targetY = pointer.y * 5;
-                camera.position.x += (targetX - camera.position.x) * 0.05;
-                camera.position.y += (targetY - camera.position.y) * 0.05;
+                camera.position.x += (pointer.x * 6 - camera.position.x) * 0.05;
+                camera.position.y += (pointer.y * 6 - camera.position.y) * 0.05;
                 camera.lookAt(0, 0, 0);
             });
 
-            return (
-                <group ref={groupRef}>
-                    <TransformativeDNA />
-                </group>
-            );
+            return <MorphingSwarm />;
         };
 
         const App = () => {
             return (
                 <div className="w-full h-screen bg-slate-950 flex flex-col items-center justify-center relative touch-none">
                     <div className="w-full h-full cursor-crosshair">
-                        <Canvas dpr={Math.min(window.devicePixelRatio, 1.5)} camera={{ position: [0, 0, 18], fov: 45 }} gl={{ antialias: true, alpha: false }}>
+                        {/* Render target resolution bounded to 1.5x pixel ratio for locked 60fps on integrated graphics */}
+                        <Canvas dpr={Math.min(window.devicePixelRatio, 1.5)} camera={{ position: [0, 0, 22], fov: 45 }} gl={{ antialias: true, alpha: false }}>
                             <color attach="background" args={['#020617']} />
                             <Scene />
                         </Canvas>
