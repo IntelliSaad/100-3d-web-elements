@@ -65,6 +65,14 @@
 </script>
 
 <!-- Babel for in-browser JSX compilation -->
+<script>
+  // Suppress the Babel production warning since we intentionally have no build step
+  const origWarn = console.warn;
+  console.warn = function(...args) {
+    if (args[0] && args[0].includes('in-browser Babel transformer')) return;
+    origWarn.apply(console, args);
+  };
+</script>
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
 <script type="text/babel" data-type="module">
@@ -106,8 +114,8 @@ function ParticleSystem({ text }) {
         uTime: { value: 0 },
         uMorph: { value: 0 },
         uMouse: { value: new THREE.Vector3(999, 999, 999) },
-        uColorCyan: { value: new THREE.Color("#00f5ff") },
-        uColorGold: { value: new THREE.Color("#ffdf00") },
+        uColorPrimary: { value: new THREE.Color("#ff003c") }, // Deep Crimson
+        uColorSecondary: { value: new THREE.Color("#b026ff") },// Neon Purple
     }), []);
 
     // Morph Logic when Text changes
@@ -120,7 +128,7 @@ function ParticleSystem({ text }) {
         // 1. Render text to hidden 2D canvas to extract pixel coordinates
         const canvas = document.createElement('canvas');
         const tempCtx = canvas.getContext('2d');
-        const fontStr = '900 240px system-ui, -apple-system, sans-serif';
+        const fontStr = '200 240px system-ui, -apple-system, sans-serif'; // Thinner font weight
         tempCtx.font = fontStr;
         const textWidth = tempCtx.measureText(text).width;
         
@@ -163,14 +171,14 @@ function ParticleSystem({ text }) {
         for(let i=0; i<NUM_PARTICLES; i++) {
             const coord = textCoords[Math.floor(Math.random() * textCoords.length)];
             
-            // Add spherical volume to the flat text so it's a 3D structure
-            const r = Math.cbrt(Math.random()) * 0.25; 
+            // Add spherical volume to the flat text so it's a 3D structure - tightened for thinner text
+            const r = Math.cbrt(Math.random()) * 0.05; 
             const theta = Math.random() * 2 * Math.PI;
             const phi = Math.acos(2 * Math.random() - 1);
             
             newTargetPos[i*3] = coord.x + r * Math.sin(phi) * Math.cos(theta);
             newTargetPos[i*3+1] = coord.y + r * Math.sin(phi) * Math.sin(theta);
-            newTargetPos[i*3+2] = r * Math.cos(phi) + (Math.random()-0.5)*0.8; // Z-depth extrusion
+            newTargetPos[i*3+2] = r * Math.cos(phi) + (Math.random()-0.5)*0.2; // Tighter Z-depth extrusion
         }
 
         // 3. Bake current interpolated positions into Start, and feed Target to End
@@ -226,7 +234,7 @@ function ParticleSystem({ text }) {
             </mesh>
 
             <instancedMesh ref={meshRef} args={[null, null, NUM_PARTICLES]}>
-                <sphereGeometry args={[0.035, 6, 6]}>
+                <sphereGeometry args={[0.012, 6, 6]}>
                     <instancedBufferAttribute attach="attributes-aPositionStart" args={[spherePositions, 3]} />
                     <instancedBufferAttribute attach="attributes-aPositionEnd" args={[spherePositions, 3]} />
                 </sphereGeometry>
@@ -280,8 +288,8 @@ function ParticleSystem({ text }) {
                         }
                     `}
                     fragmentShader={`
-                        uniform vec3 uColorCyan;
-                        uniform vec3 uColorGold;
+                        uniform vec3 uColorPrimary;
+                        uniform vec3 uColorSecondary;
                         varying vec3 vPos;
                         
                         // Fast grain noise
@@ -290,10 +298,10 @@ function ParticleSystem({ text }) {
                         }
 
                         void main() {
-                            // Gold blend at the base
+                            // Blend at the base
                             // The initial sphere goes down to Y -4, Text goes to Y -1.5 approx.
                             float yMix = smoothstep(-2.5, 1.0, vPos.y); 
-                            vec3 color = mix(uColorGold, uColorCyan, yMix);
+                            vec3 color = mix(uColorSecondary, uColorPrimary, yMix);
                             
                             // Grain texture added to surface
                             color -= random(gl_FragCoord.xy) * 0.15;
