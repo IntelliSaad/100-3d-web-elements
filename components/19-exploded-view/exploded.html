@@ -1,370 +1,231 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Exploded View Product Reveal</title>
-  <style>
-    * { margin:0; padding:0; box-sizing:border-box; }
-    html { scroll-behavior: smooth; }
-    body { background:#000; font-family:'Courier New',monospace; overflow-x:hidden; }
-
-    .scroll-wrapper { height: 500vh; position: relative; }
-
-    .sticky-canvas {
-      position: sticky; top: 0;
-      width: 100%; height: 100vh;
-      overflow: hidden;
-    }
-
-    #canvas-container { position: absolute; inset: 0; }
-
-    .hud {
-      position: absolute; top: 0; left: 0; right: 0;
-      padding: 24px 28px;
-      display: flex; justify-content: space-between; align-items: flex-start;
-      z-index: 10; pointer-events: none;
-    }
-    .hud-title { font-size: 11px; letter-spacing: 4px; color: rgba(255,255,255,0.4); text-transform: uppercase; }
-    .hud-model { font-size: 9px; letter-spacing: 2px; color: rgba(255,255,255,0.2); margin-top: 4px; }
-    .hud-right { text-align: right; }
-    .progress-bar {
-      width: 80px; height: 1px;
-      background: rgba(255,255,255,0.08);
-      position: relative; margin-top: 8px; margin-left: auto;
-    }
-    .progress-fill {
-      position: absolute; left: 0; top: 0; height: 100%;
-      background: linear-gradient(90deg, #d4af37, #fff);
-      transition: width 0.05s linear;
-    }
-
-    .label-overlay {
-      position: absolute; inset: 0;
-      pointer-events: none; z-index: 10;
-    }
-    .part-label {
-      position: absolute;
-      font-size: 9px; letter-spacing: 2px; text-transform: uppercase;
-      color: rgba(255,255,255,0); transition: color 0.5s ease;
-      display: flex; align-items: center; gap: 8px;
-    }
-    .part-label.visible { color: rgba(255,255,255,0.45); }
-    .part-label::before {
-      content: '';
-      width: 20px; height: 1px;
-      background: rgba(255,255,255,0.2);
-      display: block;
-    }
-
-    .scroll-hint {
-      position: absolute; bottom: 28px; left: 50%;
-      transform: translateX(-50%);
-      font-size: 9px; letter-spacing: 3px;
-      color: rgba(255,255,255,0.2); text-transform: uppercase;
-      animation: fadeUpDown 2s ease-in-out infinite;
-      pointer-events: none; z-index: 10;
-    }
-    @keyframes fadeUpDown {
-      0%,100%{opacity:0.4;transform:translateX(-50%) translateY(0)}
-      50%{opacity:0.8;transform:translateX(-50%) translateY(-5px)}
-    }
-
-    .vignette {
-      position: absolute; inset: 0;
-      background: radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.6) 100%);
-      pointer-events: none; z-index: 5;
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Holographic Developer Badge</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        neutral: {
+                            950: '#0a0a0a',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { margin: 0; background-color: #0a0a0a; color: white; overflow: hidden; touch-action: none; }
+        #root { width: 100vw; height: 100vh; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+        
+        .glass-hint {
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 9999px;
+            padding: 8px 16px;
+        }
+    </style>
 </head>
 <body>
+    <div id="root"></div>
 
-<div class="scroll-wrapper">
-  <div class="sticky-canvas">
-    <div id="canvas-container"></div>
-
-    <div class="hud">
-      <div>
-        <div class="hud-title">Tourbillon Cal. VII</div>
-        <div class="hud-model">Exploded · Interior View</div>
-      </div>
-      <div class="hud-right">
-        <div class="hud-title" id="partName">Case Assembly</div>
-        <div class="progress-bar">
-          <div class="progress-fill" id="progressFill" style="width:0%"></div>
-        </div>
-      </div>
-    </div>
-
-    <div class="label-overlay" id="labelOverlay">
-      <div class="part-label" id="labelCrystal" style="top:15%;left:58%">Sapphire Crystal</div>
-      <div class="part-label" id="labelDial"    style="top:28%;left:60%">Guilloche Dial</div>
-      <div class="part-label" id="labelMovement" style="top:50%;left:58%">Movement · Cal.7</div>
-      <div class="part-label" id="labelCage"    style="top:65%;left:60%">Tourbillon Cage</div>
-      <div class="part-label" id="labelMainspring" style="top:78%;left:58%">Mainspring Barrel</div>
-      <div class="part-label" id="labelCaseback" style="top:88%;left:60%">Exhibition Caseback</div>
-    </div>
-
-    <div class="vignette"></div>
-    <div class="scroll-hint">↓ scroll to disassemble ↓</div>
-  </div>
-</div>
-
-<script type="importmap">
-{
-  "imports": {
-    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
-    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
-  }
-}
-</script>
-<script type="module">
-import * as THREE from 'three';
-
-const container = document.getElementById('canvas-container');
-const W = container.clientWidth || window.innerWidth;
-const H = container.clientHeight || window.innerHeight;
-
-const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1)); // Clamped to 1 for high performance on integrated GPUs
-renderer.setSize(W, H);
-renderer.shadowMap.enabled = false; // shadows baked into geometry/material
-renderer.setClearColor(0x050505);
-container.appendChild(renderer.domElement);
-
-const scene = new THREE.Scene();
-scene.fog = new THREE.FogExp2(0x050505, 0.12);
-
-const camera = new THREE.PerspectiveCamera(42, W / H, 0.1, 100);
-camera.position.set(0, 0.5, 5.5);
-camera.lookAt(0, 0, 0);
-
-// Minimal lighting — rest is material-baked
-const ambient = new THREE.AmbientLight(0xffffff, 1.2);
-scene.add(ambient);
-const keyLight = new THREE.DirectionalLight(0xffd070, 1.0);
-keyLight.position.set(3, 5, 3);
-scene.add(keyLight);
-const rimLight = new THREE.DirectionalLight(0x8080ff, 0.5);
-rimLight.position.set(-3, -2, 2);
-scene.add(rimLight);
-
-// ────────────────────────────────────────────
-// BUILD WATCH PARTS PROGRAMMATICALLY
-// Each part = {mesh, originY, restY, explodedY, label}
-// ────────────────────────────────────────────
-// PERFORMANCE: Using MeshPhongMaterial instead of MeshStandardMaterial prevents the 'discolored' pitch black look when an Environment map is absent, and runs much faster.
-const GOLD   = new THREE.MeshPhongMaterial({ color:0xd4af37, specular:0xddaa55, shininess: 80 });
-const SILVER = new THREE.MeshPhongMaterial({ color:0xc0c8d6, specular:0xeeeeee, shininess: 80 });
-const DARK   = new THREE.MeshPhongMaterial({ color:0x1a1a2e, specular:0x333333, shininess: 30 });
-const BLUE   = new THREE.MeshPhongMaterial({ color:0x1e3a5f, specular:0x555555, shininess: 50 });
-// REMOVED heavy MeshPhysicalMaterial transmission which was crashing laptops
-const GLASS  = new THREE.MeshPhongMaterial({ color:0xffffff, specular:0xffffff, shininess: 100, transparent:true, opacity:0.15 }); 
-const RUBY   = new THREE.MeshPhongMaterial({ color:0xcc2244, specular:0xff5555, shininess: 90 });
-
-function makeRing(outerR, innerR, h, mat, y=0) {
-  // CylinderGeometry subtracted via two — approximate with ExtrudeGeometry shape
-  const shape = new THREE.Shape();
-  shape.absarc(0,0,outerR,0,Math.PI*2,false);
-  const hole = new THREE.Path();
-  hole.absarc(0,0,innerR,0,Math.PI*2,true);
-  shape.holes.push(hole);
-  const geo = new THREE.ExtrudeGeometry(shape,{depth:h,bevelEnabled:false});
-  geo.rotateX(Math.PI/2);
-  const m = new THREE.Mesh(geo, mat.clone());
-  m.position.y = y;
-  return m;
-}
-
-function makeCyl(r, h, mat, y=0, segs=32) { // Lowered segments for performance
-  const m = new THREE.Mesh(new THREE.CylinderGeometry(r,r,h,segs,1), mat.clone());
-  m.position.y = y;
-  return m;
-}
-
-function makeTorus(R, r, mat, y=0) {
-  const m = new THREE.Mesh(new THREE.TorusGeometry(R,r,8,24), mat.clone()); // Lowered subdivisions
-  m.rotation.x = Math.PI/2;
-  m.position.y = y;
-  return m;
-}
-
-// Parts array: {group, restY, explodedY, labelId, partName}
-const PARTS = [];
-const ROOT  = new THREE.Group();
-scene.add(ROOT);
-
-// 1. Caseback (bottom lid)
-const caseback = new THREE.Group();
-caseback.add(makeCyl(0.9, 0.08, GOLD, 0));
-caseback.add(makeTorus(0.86, 0.04, SILVER, 0.04));
-PARTS.push({ group:caseback, restY:-0.60, explodedY:-2.8, labelId:'labelCaseback', partName:'Exhibition Caseback' });
-
-// 2. Mainspring barrel
-const barrel = new THREE.Group();
-barrel.add(makeCyl(0.5, 0.14, GOLD, 0));
-barrel.add(makeCyl(0.18, 0.18, DARK, 0));
-// spiral coils
-for(let i=0;i<5;i++){
-  const t = makeTorus(0.3+i*0.04, 0.012, SILVER, 0);
-  barrel.add(t);
-}
-PARTS.push({ group:barrel, restY:-0.36, explodedY:-2.0, labelId:'labelMainspring', partName:'Mainspring Barrel' });
-
-// 3. Tourbillon cage
-const cage = new THREE.Group();
-cage.add(makeRing(0.22, 0.16, 0.16, GOLD, 0));
-// cage spokes
-for(let i=0;i<3;i++){
-  const spoke = new THREE.Mesh(
-    new THREE.BoxGeometry(0.44, 0.02, 0.02),
-    GOLD.clone()
-  );
-  spoke.rotation.y = (i/3)*Math.PI;
-  cage.add(spoke);
-}
-cage.add(makeCyl(0.04, 0.16, RUBY, 0));
-PARTS.push({ group:cage, restY:-0.18, explodedY:-1.1, labelId:'labelCage', partName:'Tourbillon Cage' });
-
-// 4. Movement plate
-const movement = new THREE.Group();
-movement.add(makeCyl(0.85, 0.06, SILVER, 0));
-// gear wheels
-
-[{x:0.35,z:0},{x:-0.3,z:0.25},{x:0.1,z:-0.4},{x:-0.4,z:-0.2},{x:0.45,z:0.3}].forEach(p=>{
-  const gear = makeCyl(0.09, 0.04, GOLD, 0.04);
-  gear.position.x = p.x; gear.position.z = p.z;
-  movement.add(gear);
-  // jewel
-  const jewel = makeCyl(0.015, 0.05, RUBY, 0.06);
-  jewel.position.x = p.x; jewel.position.z = p.z;
-  movement.add(jewel);
-});
-// bridges
-const bridge = new THREE.Mesh(new THREE.BoxGeometry(1.2,0.025,0.5), GOLD.clone());
-bridge.position.y = 0.055;
-movement.add(bridge);
-PARTS.push({ group:movement, restY:0, explodedY:0.2, labelId:'labelMovement', partName:'Movement · Cal.7' });
-
-// 5. Dial
-const dial = new THREE.Group();
-dial.add(makeCyl(0.84, 0.04, BLUE, 0)); // base
-// hour markers
-for(let i=0;i<12;i++){
-  const a = (i/12)*Math.PI*2;
-  const marker = new THREE.Mesh(new THREE.BoxGeometry(0.04,0.025,0.012), GOLD.clone());
-  marker.position.x = Math.sin(a)*0.72;
-  marker.position.z = Math.cos(a)*0.72;
-  marker.rotation.y = a;
-  dial.add(marker);
-}
-// hands
-const hourHand = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.03, 0.025), GOLD.clone());
-hourHand.position.x = 0.18; hourHand.position.y = 0.04;
-dial.add(hourHand);
-const minHand = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.02, 0.018), SILVER.clone());
-minHand.position.x = 0.28; minHand.position.y = 0.05;
-dial.add(minHand);
-PARTS.push({ group:dial, restY:0.14, explodedY:1.2, labelId:'labelDial', partName:'Guilloche Dial' });
-
-// 6. Case middle ring
-const caseRing = new THREE.Group();
-caseRing.add(makeRing(0.92, 0.86, 0.42, GOLD, 0)); // outer wall
-// crown-pipe bump
-const crown = makeCyl(0.06, 0.2, SILVER, 0);
-crown.rotation.z = Math.PI/2; crown.position.x = 0.96;
-caseRing.add(crown);
-// lugs
-[-1,1].forEach(side=>{
-  const lug = new THREE.Mesh(new THREE.BoxGeometry(0.22,0.08,0.32), GOLD.clone());
-  lug.position.z = side * 1.05; lug.position.y = 0;
-  caseRing.add(lug);
-});
-// not in PARTS — stays with case, just parent group thing
-ROOT.add(caseRing);
-
-// 7. Crystal (topmost)
-const crystal = new THREE.Group();
-crystal.add(makeCyl(0.87, 0.04, GLASS, 0));
-// anti-reflective rim
-crystal.add(makeRing(0.89, 0.87, 0.04, SILVER, 0));
-PARTS.push({ group:crystal, restY:0.28, explodedY:2.4, labelId:'labelCrystal', partName:'Sapphire Crystal' });
-
-// Add all parts to ROOT, set initial rest positions
-PARTS.forEach(p => {
-  p.group.position.y = p.restY;
-  ROOT.add(p.group);
-});
-
-// ─── SCROLL ──────────────────────────────────
-let scrollProgress = 0;
-const progressFill = document.getElementById('progressFill');
-const partNameEl   = document.getElementById('partName');
-
-window.addEventListener('scroll', () => {
-  const wrap = document.querySelector('.scroll-wrapper');
-  const maxScroll = wrap.offsetHeight - window.innerHeight;
-  scrollProgress = Math.min(Math.max(window.scrollY / maxScroll, 0), 1);
-  progressFill.style.width = (scrollProgress * 100) + '%';
-}, { passive: true });
-
-// ─── ANIMATION ───────────────────────────────
-const clock = new THREE.Clock();
-const labels = {
-  labelCrystal:   document.getElementById('labelCrystal'),
-  labelDial:      document.getElementById('labelDial'),
-  labelMovement:  document.getElementById('labelMovement'),
-  labelCage:      document.getElementById('labelCage'),
-  labelMainspring:document.getElementById('labelMainspring'),
-  labelCaseback:  document.getElementById('labelCaseback'),
-};
-
-function lerp(a,b,t){ return a+(b-a)*t; }
-
-// Stagger: each part uses its own sub-range of scrollProgress
-const staggers = [0, 0.12, 0.22, 0.32, 0.44, 0.56]; // crystal, dial, movement, cage, barrel, caseback
-
-function animate() {
-  requestAnimationFrame(animate);
-  const t = clock.getElapsedTime();
-
-  PARTS.forEach((p, i) => {
-    // Staggered scroll window: each part explodes in sequence
-    const start = staggers[i] || 0;
-    const end   = start + 0.25;
-    const raw   = Math.min(Math.max((scrollProgress - start) / (end - start), 0), 1);
-    const ease  = raw < 0.5 ? 2*raw*raw : -1+(4-2*raw)*raw; // ease in-out quad
-
-    const targetY = lerp(p.restY, p.explodedY, ease);
-    p.group.position.y = lerp(p.group.position.y, targetY, 0.08);
-
-    // Show/hide labels based on whether part has moved
-    if(labels[p.labelId]) {
-      labels[p.labelId].classList.toggle('visible', raw > 0.2 && raw < 0.95);
+    <!-- React, ReactDOM, and Framer Motion via ESM -->
+    <script type="importmap">
+    {
+        "imports": {
+            "react": "https://esm.sh/react@18.2.0",
+            "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+            "framer-motion": "https://esm.sh/framer-motion@11.0.8?external=react,react-dom",
+            "three": "https://esm.sh/three@0.160.0",
+            "@react-three/fiber": "https://esm.sh/@react-three/fiber@8.15.14?external=react,react-dom,three",
+            "@react-three/drei": "https://esm.sh/@react-three/drei@9.96.1?external=react,react-dom,three,@react-three/fiber"
+        }
     }
+    </script>
 
-    // Update HUD part name
-    if(raw > 0.05 && raw < 0.95) partNameEl.textContent = p.partName;
-  });
+    <!-- Babel for JSX -->
+    <script>
+        // Suppress Babel / Tailwind CDN warnings for clean devtools
+        const origWarn = console.warn;
+        console.warn = function(...args) {
+            if (args[0] && typeof args[0] === 'string' && (args[0].includes('in-browser Babel transformer') || args[0].includes('cdn.tailwindcss.com should not be used in production'))) return;
+            origWarn.apply(console, args);
+        };
+    </script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
-  // Slow base rotation + camera drift
-  ROOT.rotation.y = t * 0.18 + scrollProgress * 0.6;
-  ROOT.rotation.x = Math.sin(t*0.12)*0.06;
+    <script type="text/babel" data-type="module">
+        import React, { useRef, useState, useEffect } from 'react';
+        import { createRoot } from 'react-dom/client';
+        import { motion, useMotionValue, useSpring, useTransform } from 'framer-motion';
+        import { Canvas, useFrame, useThree } from '@react-three/fiber';
+        import { RoundedBox, MeshTransmissionMaterial, Text, Environment } from '@react-three/drei';
 
-  camera.position.y = lerp(camera.position.y, 0.5 + scrollProgress * 0.8, 0.03);
-  camera.position.z = lerp(camera.position.z, 5.5 - scrollProgress * 0.8, 0.03);
-  camera.lookAt(0, scrollProgress * 0.5, 0);
+        const Badge = ({ mouseX, mouseY, isHovered }) => {
+            const groupRef = useRef();
+            const { invalidate } = useThree();
+            
+            // Physical spring physics to smooth out the mouse tracking
+            const springConfig = { damping: 20, stiffness: 120, mass: 0.5 };
+            const springX = useSpring(mouseX, springConfig);
+            const springY = useSpring(mouseY, springConfig);
+            
+            // Map the normalized -0.5 to 0.5 mouse bounds into rotation radians (max ~17 degrees)
+            const rotationX = useTransform(springY, [-0.5, 0.5], [-0.3, 0.3]);
+            const rotationY = useTransform(springX, [-0.5, 0.5], [0.3, -0.3]);
 
-  renderer.render(scene, camera);
-}
-animate();
+            // Gentle levitation physics (only active rendering when hovered)
+            useFrame((state, delta) => {
+                if (isHovered) {
+                    invalidate(); // Keep frameloop active while bobbing
+                    const t = state.clock.getElapsedTime();
+                    // Subtle bob up and down
+                    groupRef.current.position.y = Math.sin(t * 1.5) * 0.12;
+                } else {
+                    // Smoothly decay back to origin when mouse leaves
+                    groupRef.current.position.y += (0 - groupRef.current.position.y) * delta * 4;
+                    if (Math.abs(groupRef.current.position.y) > 0.001) invalidate();
+                }
+            });
 
-window.addEventListener('resize', ()=>{
-  const W2=window.innerWidth, H2=window.innerHeight;
-  camera.aspect=W2/H2;
-  camera.updateProjectionMatrix();
-  renderer.setSize(W2,H2);
-});
-</script>
+            // Bind framer motion values to the WebGL rotation and aggressively invalidate to trigger paints
+            useEffect(() => {
+                const unsubX = rotationX.on('change', (v) => {
+                    if (groupRef.current) groupRef.current.rotation.x = v;
+                    invalidate();
+                });
+                const unsubY = rotationY.on('change', (v) => {
+                    if (groupRef.current) groupRef.current.rotation.y = v;
+                    invalidate();
+                });
+                return () => { unsubX(); unsubY(); };
+            }, [rotationX, rotationY, invalidate]);
+
+            // Memoize the deterministic barcode layout
+            const barcode = React.useMemo(() => {
+                return Array.from({length: 14}).map((_, i) => ({
+                    w: 0.02 + Math.random() * 0.04,
+                    x: -0.7 + i * 0.11
+                }));
+            }, []);
+
+            return (
+                <group ref={groupRef}>
+                    {/* The Physical Acrylic Block */}
+                    <RoundedBox args={[3.0, 4.6, 0.5]} radius={0.15} smoothness={4}>
+                        <MeshTransmissionMaterial 
+                            roughness={0.2}
+                            transmission={1}
+                            thickness={1.5}
+                            chromaticAberration={0.06}
+                            iridescence={0.4}
+                            iridescenceIOR={1.3}
+                            clearcoat={1}
+                            color="#fff"
+                            background={new React.Suspense()}
+                        />
+                    </RoundedBox>
+                    
+                    {/* Inner Holographic Content 
+                        Positioning at Z=0 places this safely inside the physical thickness of the glass
+                        so the transmission shader physically refracts the font */}
+                    <group position={[0, 0, 0]}>
+                        <Text position={[0, 1.3, 0]} fontSize={0.18} color="#8b5cf6" anchorX="center" anchorY="middle" letterSpacing={0.25} font="https://fonts.gstatic.com/s/inter/v12/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuLyeMZhrib2Bg-4.ttf">
+                            DEVELOPER
+                        </Text>
+                        
+                        <Text position={[0, 0.3, 0]} fontSize={0.8} color="#ffffff" anchorX="center" anchorY="middle" fontWeight={800} font="https://fonts.gstatic.com/s/inter/v12/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuLyeMZhrib2Bg-4.ttf">
+                            LEVEL 99
+                        </Text>
+                        
+                        <Text position={[0, -0.6, 0]} fontSize={0.11} color="#a3a3a3" anchorX="center" anchorY="middle" letterSpacing={0.35} font="https://fonts.gstatic.com/s/inter/v12/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuLyeMZhrib2Bg-4.ttf">
+                            GUEST PASS INC.
+                        </Text>
+
+                        {/* Faux Barcode Identifier */}
+                        <group position={[0, -1.4, 0]}>
+                            {barcode.map((b, i) => (
+                                <mesh key={i} position={[b.x, 0, 0]}>
+                                    <planeGeometry args={[b.w, 0.25]} />
+                                    <meshBasicMaterial color="#ffffff" transparent opacity={0.5} />
+                                </mesh>
+                            ))}
+                        </group>
+                    </group>
+                </group>
+            );
+        };
+
+        const App = () => {
+            const containerRef = useRef();
+            const mouseX = useMotionValue(0);
+            const mouseY = useMotionValue(0);
+            const [isHovered, setIsHovered] = useState(false);
+
+            const handleMouseMove = (e) => {
+                if(!containerRef.current) return;
+                const rect = containerRef.current.getBoundingClientRect();
+                const x = e.clientX - rect.left - rect.width / 2;
+                const y = e.clientY - rect.top - rect.height / 2;
+                mouseX.set(x / rect.width);
+                mouseY.set(y / rect.height);
+            };
+
+            const handleMouseLeave = () => {
+                setIsHovered(false);
+                mouseX.set(0);
+                mouseY.set(0);
+            };
+
+            const handleMouseEnter = () => setIsHovered(true);
+
+            return (
+                <div 
+                    ref={containerRef}
+                    className="w-full h-screen bg-neutral-950 flex flex-col items-center justify-center relative touch-none"
+                    onMouseMove={handleMouseMove}
+                    onMouseLeave={handleMouseLeave}
+                    onMouseEnter={handleMouseEnter}
+                >
+                    {/* UI HUD Overlay */}
+                    <div className="absolute top-12 left-1/2 -translate-x-1/2 flex flex-col items-center pointer-events-none z-10">
+                        <h1 className="text-white/80 tracking-[0.3em] text-xs uppercase font-bold mb-3">Security Clearance</h1>
+                        <div className="glass-hint">
+                            <p className="text-white/60 text-[10px] uppercase tracking-widest">Hover to levitate & scan</p>
+                        </div>
+                    </div>
+
+                    <div className="absolute bottom-12 left-1/2 -translate-x-1/2 pointer-events-none">
+                        <p className="font-mono text-[10px] text-neutral-600 tracking-wider">SECURE-LINK-0x88FF</p>
+                    </div>
+
+                    {/* Highly Optimized R3F Scene */}
+                    <div className="w-full h-full cursor-crosshair">
+                        <Canvas frameloop="demand" camera={{ position: [0, 0, 6], fov: 45 }} dpr={[1, 1.5]}>
+                            <ambientLight intensity={0.5} />
+                            
+                            {/* Directional styling lights to highlight the glass bevels */}
+                            <spotLight position={[10, 10, 5]} angle={0.2} penumbra={1} intensity={2} color="#ffffff" />
+                            <spotLight position={[-10, -10, 5]} angle={0.2} penumbra={1} intensity={1} color="#8b5cf6" />
+                            
+                            {/* Extremely cheap, low-res Environment map for realistic glass reflection */}
+                            <Environment preset="city" resolution={128} />
+                            
+                            <Badge mouseX={mouseX} mouseY={mouseY} isHovered={isHovered} />
+                        </Canvas>
+                    </div>
+                </div>
+            );
+        };
+
+        const root = createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
 </body>
 </html>
