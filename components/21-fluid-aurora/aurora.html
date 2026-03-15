@@ -58,14 +58,15 @@ renderer.setSize(W, H);
 container.appendChild(renderer.domElement);
 
 const scene  = new THREE.Scene();
-const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 10);
-camera.position.z = 1; // FIX: Prevents geometry clipping on z=0 plane
+const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 10);
+camera.position.z = 1;
 
 // ── FLUID NOISE SHADER ───────────────────────────
 const fragmentShader = `
 uniform float uTime;
 uniform vec2 uResolution;
 uniform vec2 uMouse;
+varying vec2 vUv;
 
 // 2D Random
 vec2 random2(vec2 st){
@@ -103,7 +104,8 @@ float fbm(vec2 st) {
 }
 
 void main() {
-    vec2 st = gl_FragCoord.xy / uResolution.xy;
+    // Use vUv for safety across all GPU drivers instead of gl_FragCoord
+    vec2 st = vUv;
     st.x *= uResolution.x / uResolution.y;
 
     // Mouse influence
@@ -114,7 +116,9 @@ void main() {
     
     // Swirl distortion based on mouse proximity
     float swirl = exp(-dist * 3.0);
-    st += normalize(delta) * swirl * 0.1 * sin(uTime * 2.0);
+    // Prevent normalize(0,0) NaN crash on Intel HD drivers
+    vec2 dir = dist > 0.0 ? delta / dist : vec2(0.0);
+    st += dir * swirl * 0.1 * sin(uTime * 2.0);
 
     // Primary motion
     vec2 q = vec2(0.);
@@ -142,7 +146,7 @@ void main() {
 
     // Enhance contrast and vignette (simplified math for speed)
     vec3 finalColor = (f*f*f + .6*f*f + .5*f) * color;
-    float distToCenter = length(gl_FragCoord.xy / uResolution.xy - 0.5);
+    float distToCenter = length(vUv - 0.5);
     float vignette = 1.0 - smoothstep(0.4, 1.5, distToCenter);
     
     gl_FragColor = vec4(finalColor * vignette, 1.0);
@@ -156,7 +160,13 @@ const uniforms = {
 };
 
 const material = new THREE.ShaderMaterial({
-  vertexShader: `void main() { gl_Position = vec4(position, 1.0); }`,
+  vertexShader: `
+    varying vec2 vUv;
+    void main() {
+      vUv = uv;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }
+  `,
   fragmentShader,
   uniforms
 });
