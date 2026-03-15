@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Looking Glass Typography</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Anton&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        'display': ['"Anton"', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { margin: 0; background-color: #050505; color: white; overflow-x: hidden; }
+        
+        .hollow-text {
+            color: transparent;
+            -webkit-text-stroke: 2px rgba(255, 255, 255, 0.8);
+            /* Optional subtle glow */
+            filter: drop-shadow(0 0 20px rgba(255, 255, 255, 0.2));
+        }
+
+        /* Prevent scroll jank during scale */
+        .will-change-transform {
+            will-change: transform;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="importmap">
+    {
+        "imports": {
+            "react": "https://esm.sh/react@18.2.0",
+            "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+            "framer-motion": "https://esm.sh/framer-motion@11.0.8?external=react,react-dom"
+        }
+    }
+    </script>
+
+    <script>
+        const origWarn = console.warn;
+        console.warn = function(...args) {
+            if (args[0] && args[0].includes('in-browser Babel transformer')) return;
+            origWarn.apply(console, args);
+        };
+    </script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <script type="text/babel" data-type="module">
+        import React, { useRef } from 'react';
+        import { createRoot } from 'react-dom/client';
+        import { motion, useScroll, useTransform, useSpring } from 'framer-motion';
+
+        const LookingGlass = () => {
+            const containerRef = useRef(null);
+            
+            // We use a 300vh container to act as the scroll track.
+            // When the user scrolls through this container, the inner text scales up.
+            const { scrollYProgress } = useScroll({
+                target: containerRef,
+                offset: ["start start", "end end"]
+            });
+
+            // Add a tiny bit of smoothing to the scroll for premium feel
+            const smoothProgress = useSpring(scrollYProgress, {
+                damping: 25,
+                stiffness: 120,
+                mass: 0.5
+            });
+
+            // Massive scale factor - from 1 to 100 ensures we go completely through the geometry "wall"
+            const scale = useTransform(smoothProgress, [0, 0.8, 1], [1, 50, 150]);
+            
+            // Fade out the stroke right at the end to transition smoothly into the next section
+            const opacity = useTransform(smoothProgress, [0.8, 0.95], [1, 0]);
+
+            return (
+                <div ref={containerRef} className="relative w-full h-[300vh] bg-neutral-950">
+                    
+                    {/* The sticky container that holds the pinned content during scroll */}
+                    <div className="sticky top-0 left-0 w-full h-screen overflow-hidden flex items-center justify-center bg-black z-20">
+                        <motion.h1 
+                            className="hollow-text font-display text-[25vw] leading-none tracking-tight select-none will-change-transform"
+                            style={{ 
+                                scale,
+                                opacity,
+                                // SCOPE is 5 letters. 'O' is the middle letter.
+                                // We offset transform origin slightly to perfectly hit the center counter of the 'O' in the Anton font based on typical rendering metrics.
+                                transformOrigin: "50% 55%" 
+                            }}
+                        >
+                            SCOPE
+                        </motion.h1>
+                    </div>
+
+                    {/* The hidden content section revealed after zooming "Through" the text */}
+                    {/* We position it absolute within the track, only visible at tracking end when the above overlay zooms past camera */}
+                    <div className="absolute top-[200vh] left-0 w-full h-screen flex items-center justify-center z-10 bg-gradient-to-br from-indigo-950 to-neutral-950">
+                        <div className="text-center max-w-2xl px-6">
+                            <h2 className="text-5xl md:text-7xl font-bold mb-6 tracking-tighter mix-blend-screen text-white">
+                                The Other Side
+                            </h2>
+                            <p className="text-xl text-indigo-200/60 leading-relaxed font-light">
+                                Hardware accelerated CSS transforms allow us to create infinitely deep spatial environments without a single line of WebGL code. 
+                                Instantly loaded, perfectly smooth, natively responsive.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const App = () => {
+            return (
+                <div className="w-full">
+                    {/* Intro Section before hitting the zoom track */}
+                    <div className="h-screen w-full flex items-center justify-center bg-neutral-900">
+                        <p className="text-neutral-500 uppercase tracking-widest text-sm animate-pulse">
+                            Scroll down to enter
+                        </p>
+                    </div>
+
+                    <LookingGlass />
+
+                    {/* Footer Section */}
+                    <div className="h-[50vh] w-full bg-neutral-950 border-t border-white/5 flex items-center justify-center">
+                        <p className="text-neutral-600 font-mono text-xs">END OF SEQUENCE</p>
+                    </div>
+                </div>
+            );
+        };
+
+        const root = createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
