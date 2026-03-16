@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Infinite 4-Phase WebGL Background</title>
+    <title>3D Procedural Snow Ambient Background</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -11,8 +11,8 @@
             theme: {
                 extend: {
                     colors: {
-                        slate: {
-                            950: '#020617',
+                        navy: {
+                            900: '#070b19', // Deep winter night sky
                         }
                     }
                 }
@@ -20,7 +20,7 @@
         }
     </script>
     <style>
-        body { margin: 0; background-color: #020617; color: white; overflow: hidden; font-family: 'Inter', sans-serif; }
+        body { margin: 0; background-color: #070b19; color: white; overflow: hidden; font-family: 'Inter', sans-serif; }
         #root { width: 100vw; height: 100vh; position: relative; }
     </style>
 </head>
@@ -55,221 +55,133 @@
         import * as THREE from 'three';
         import { Canvas, useFrame, useThree } from '@react-three/fiber';
 
-        const NUM = 5000; // Flawless 60fps on integrated graphics with InstancedMesh
+        const NUM_FLAKES = 10000; // Hyper-dense snowfall, extreme performance
 
-        // --- 4 Absolute Full-Screen Background Phases ---
-        // All arrays center directly around [0,0,0] where the camera rests, wrapping the viewport completely.
-
-        // 1. The Void (Random full-screen universe)
-        const getVoidTargets = () => {
-            const pos = new Float32Array(NUM * 3);
-            const col = new Float32Array(NUM * 3);
-            for(let i=0; i<NUM; i++) {
-                // Fills a massive 160x160x160 cubic volume centered on the camera
-                pos[i*3] = (Math.random() - 0.5) * 160; 
-                pos[i*3+1] = (Math.random() - 0.5) * 160; 
-                pos[i*3+2] = (Math.random() - 0.5) * 160; 
-                // Color: Subtly glowing dark cyans/blues
-                col[i*3] = 0.1; col[i*3+1] = 0.5 + Math.random()*0.5; col[i*3+2] = 0.8 + Math.random()*0.2;
-            }
-            return { pos, col };
-        };
-
-        // 2. The Lattice (Infinite 3D Cyber-Grid)
-        const getLatticeTargets = () => {
-            const pos = new Float32Array(NUM * 3);
-            const col = new Float32Array(NUM * 3);
-            const side = Math.ceil(Math.cbrt(NUM)); // ~18
-            const spacing = 10;
-            for(let i=0; i<NUM; i++) {
-                const x = (i % side) - side/2;
-                const y = (Math.floor(i / side) % side) - side/2;
-                const z = (Math.floor(i / (side * side))) - side/2;
-                
-                pos[i*3] = x * spacing + (Math.random()-0.5);
-                pos[i*3+1] = y * spacing + (Math.random()-0.5);
-                pos[i*3+2] = z * spacing + (Math.random()-0.5);
-                // Color: Synthwave fuchsia/purples
-                col[i*3] = 0.8 + Math.random()*0.2; col[i*3+1] = 0.1 + Math.random()*0.2; col[i*3+2] = 0.6 + Math.random()*0.4;
-            }
-            return { pos, col };
-        };
-
-        // 3. The Digital Ocean (Infinite ceiling and floor waves)
-        const getOceanTargets = () => {
-            const pos = new Float32Array(NUM * 3);
-            const col = new Float32Array(NUM * 3);
-            const side = Math.ceil(Math.sqrt(NUM)); // ~71
-            const spacing = 4;
-            for(let i=0; i<NUM; i++) {
-                const x = (i % side) - side/2;
-                const z = Math.floor(i / side) - side/2;
-                
-                pos[i*3] = x * spacing;
-                // Double plane mapping: push half the nodes up 25 units, half down 25 units
-                pos[i*3+1] = (i % 2 === 0) ? 25 : -25;
-                pos[i*3+2] = z * spacing;
-
-                // Color: Emerald greens and digital golds
-                col[i*3] = 0.1; col[i*3+1] = 0.9 + Math.random()*0.1; col[i*3+2] = 0.4 + Math.random()*0.3;
-            }
-            return { pos, col };
-        };
-
-        // 4. Warp Hyperspace (Massive enveloping tube pushing stars past the camera)
-        const getTunnelTargets = () => {
-            const pos = new Float32Array(NUM * 3);
-            const col = new Float32Array(NUM * 3);
-            for(let i=0; i<NUM; i++) {
-                const angle = Math.random() * Math.PI * 2;
-                // Leave a huge 15-unit radius hole in the center for the camera to fly through
-                const radius = 15 + Math.random() * 20; 
-                // Stretch the tunnel 300 units deep
-                const depth = (Math.random() - 0.5) * 300; 
-
-                pos[i*3] = Math.cos(angle) * radius;
-                pos[i*3+1] = Math.sin(angle) * radius;
-                pos[i*3+2] = depth;
-
-                // Color: Hyper-speed deep reds and oranges
-                col[i*3] = 0.9 + Math.random()*0.1; col[i*3+1] = 0.4 + Math.random()*0.2; col[i*3+2] = 0.1;
-            }
-            return { pos, col };
-        };
-
-        const AmbientBackground = () => {
+        const SnowyEnvironment = () => {
             const meshRef = useRef();
-            const groupRef = useRef();
 
-            // Setup buffers safely outside of the render loop
-            const { buffers, shapes } = useMemo(() => {
-                const shapes = [getVoidTargets(), getLatticeTargets(), getOceanTargets(), getTunnelTargets()];
+            // Setup buffers outside the render loop
+            const { positions, velocities, scales, dummy } = useMemo(() => {
+                const pos = new Float32Array(NUM_FLAKES * 3);
+                const vel = new Float32Array(NUM_FLAKES * 3); // x=drift, y=fall speed, z=swirl
+                const scales = new Float32Array(NUM_FLAKES);
                 
-                // Active buffers that get rendered identically to the GPU
-                const currentPos = new Float32Array(shapes[0].pos);
-                const currentCol = new Float32Array(shapes[0].col);
+                for(let i = 0; i < NUM_FLAKES; i++) {
+                    // Spread flakes across a huge 100x100x100 volume
+                    pos[i*3] = (Math.random() - 0.5) * 100;
+                    pos[i*3+1] = (Math.random() - 0.5) * 100;
+                    pos[i*3+2] = (Math.random() - 0.5) * 100;
+                    
+                    // Fall speed and drift
+                    vel[i*3] = (Math.random() - 0.5) * 0.5; // X drift
+                    vel[i*3+1] = 0.5 + Math.random() * 1.5; // Y fall speed
+                    vel[i*3+2] = (Math.random() - 0.5) * 0.5; // Z swirl
+                    
+                    // Random flake sizing
+                    scales[i] = 0.5 + Math.random() * 1.5;
+                }
 
-                return { buffers: { currentPos, currentCol }, shapes };
+                return { positions: pos, velocities: vel, scales, dummy: new THREE.Object3D() };
             }, []);
-
-            const dummy = useMemo(() => new THREE.Object3D(), []);
 
             useFrame((state, delta) => {
                 const time = state.clock.elapsedTime;
                 
-                // 1. Math State Machine: Switches massive environments every 6 seconds
-                const phaseTime = 6;
-                const activePhase = Math.floor(time / phaseTime) % 4;
-                const targetPos = shapes[activePhase].pos;
-                const targetCol = shapes[activePhase].col;
-
-                const { currentPos, currentCol } = buffers;
-
-                // 2. Ultra-Performant Lerp Physics
-                const LERP_SPEED = Math.min(0.04, delta * 4); // Smooth transition speed
-
-                for(let i=0; i<NUM; i++) {
+                // Directly mutate Float32Arrays for extreme integrated graphics performance
+                for(let i = 0; i < NUM_FLAKES; i++) {
                     const i3 = i * 3;
                     
-                    // Natively migrate matrices between shapes
-                    currentPos[i3] += (targetPos[i3] - currentPos[i3]) * LERP_SPEED;
-                    currentPos[i3+1] += (targetPos[i3+1] - currentPos[i3+1]) * LERP_SPEED;
-                    currentPos[i3+2] += (targetPos[i3+2] - currentPos[i3+2]) * LERP_SPEED;
-
-                    currentCol[i3] += (targetCol[i3] - currentCol[i3]) * LERP_SPEED;
-                    currentCol[i3+1] += (targetCol[i3+1] - currentCol[i3+1]) * LERP_SPEED;
-                    currentCol[i3+2] += (targetCol[i3+2] - currentCol[i3+2]) * LERP_SPEED;
-
-                    // Organic, phase-specific native offsets (breathing, waving, flying)
-                    let ox = 0, oy = 0, oz = 0;
-
-                    if (activePhase === 0) { // Void Drift
-                        ox = Math.sin(time + i) * 2;
-                        oy = Math.cos(time + i) * 2;
-                    } else if (activePhase === 1) { // Lattice Breathing
-                        oy = Math.sin(time * 2 + currentPos[i3] * 0.1) * 2;
-                    } else if (activePhase === 2) { // Double Ocean Wave
-                        oy = Math.sin(time * 3 + currentPos[i3] * 0.1 + currentPos[i3+2] * 0.1) * 6;
-                        if(currentPos[i3+1] > 0) oy = -oy; // Ceiling waves opposite to floor
-                    } else if (activePhase === 3) { // Hyper Tunnel Stretch
-                        // Add extreme velocity feeling by animating Z axis rapidly
-                        oz = (time * 50 + currentPos[i3+2]) % 300 - 150; 
-                    }
-
-                    // Apply to dummy object
-                    // In phase 3, we force wrap Z because of the direct mod calculation above
-                    const finalZ = activePhase === 3 ? oz : currentPos[i3+2];
-                    dummy.position.set(currentPos[i3] + ox, currentPos[i3+1] + oy, finalZ);
+                    // Apply downward velocity
+                    positions[i3+1] -= velocities[i3+1] * delta * 5;
                     
-                    // Shape morphing: Turn spheres into massive streaks during Hyperspace
-                    if (activePhase === 3) {
-                        dummy.scale.set(0.1, 0.1, 6.0); // Extreme Z-streak
-                    } else {
-                        // Gentle pulsing
-                        dummy.scale.setScalar(1 + Math.sin(time * 3 + i) * 0.4);
+                    // Add wind/oscillation drift based on time and unique velocities
+                    const windX = Math.sin(time * 0.5 + positions[i3+1] * 0.05) * velocities[i3];
+                    const windZ = Math.cos(time * 0.5 + positions[i3+1] * 0.05) * velocities[i3+2];
+                    
+                    positions[i3] += windX * delta * 15;
+                    positions[i3+2] += windZ * delta * 15;
+
+                    // If a snowflake hits the "ground" (-50), instantly teleport it to the "sky" (+50)
+                    if (positions[i3+1] < -50) {
+                        positions[i3+1] = 50;
+                        positions[i3] = (Math.random() - 0.5) * 100;
+                        positions[i3+2] = (Math.random() - 0.5) * 100;
                     }
 
+                    // Update dummy matrix
+                    dummy.position.set(positions[i3], positions[i3+1], positions[i3+2]);
+                    
+                    // Slight spinning of the flakes
+                    dummy.rotation.x += delta * velocities[i3+1];
+                    dummy.rotation.y += delta * velocities[i3+2];
+                    
+                    dummy.scale.setScalar(scales[i] * 0.04);
                     dummy.updateMatrix();
+                    
                     meshRef.current.setMatrixAt(i, dummy.matrix);
                 }
 
-                // Push all 15,000 float vertices immediately to the GPU in a single call
+                // Push buffer update
                 meshRef.current.instanceMatrix.needsUpdate = true;
-                meshRef.current.geometry.attributes.color.needsUpdate = true;
-
-                // Slowly spin the camera's wrapper to make the environments feel alive and unending
-                if (groupRef.current) {
-                    groupRef.current.rotation.z = time * 0.05;
-                    groupRef.current.rotation.y = time * 0.05;
-                    groupRef.current.position.z = Math.sin(time * 0.2) * 5;
-                }
             });
 
             return (
-                <group ref={groupRef}>
-                    {/* Instancing bypasses React node limitations entirely */}
-                    <instancedMesh ref={meshRef} args={[null, null, NUM]}>
-                        <sphereGeometry args={[0.08, 8, 8]}>
-                            <instancedBufferAttribute attach="attributes-color" args={[buffers.currentCol, 3]} />
-                        </sphereGeometry>
-                        <meshBasicMaterial 
-                            vertexColors 
-                            toneMapped={false} 
-                            blending={THREE.AdditiveBlending} 
-                            depthWrite={false} 
-                            transparent 
-                            opacity={0.85} 
-                        />
-                    </instancedMesh>
-                </group>
+                <instancedMesh ref={meshRef} args={[null, null, NUM_FLAKES]}>
+                    <dodecahedronGeometry args={[1, 0]} />
+                    {/* Additive blending makes the snow look soft and glowing */}
+                    <meshBasicMaterial 
+                        color="#ffffff" 
+                        transparent 
+                        opacity={0.6} 
+                        blending={THREE.AdditiveBlending} 
+                        depthWrite={false} 
+                    />
+                </instancedMesh>
             );
         };
 
         const Scene = () => {
             const { camera, pointer } = useThree();
 
-            // Parallax camera tied softly to mouse movement to let user look around the environments
+            // Gently tie camera rotation to mouse coordinates for immersive looking around
             useFrame(() => {
-                camera.position.x += (pointer.x * 5 - camera.position.x) * 0.05;
-                camera.position.y += (pointer.y * 5 - camera.position.y) * 0.05;
-                camera.lookAt(0, 0, 0);
+                camera.rotation.y += (pointer.x * 0.5 - camera.rotation.y) * 0.05;
+                camera.rotation.x += (-pointer.y * 0.2 - camera.rotation.x) * 0.05;
             });
 
-            return <AmbientBackground />;
+            return (
+                <group>
+                    <SnowyEnvironment />
+                </group>
+            );
         };
 
         const App = () => {
             return (
-                <div className="w-full h-screen bg-slate-950 flex flex-col items-center justify-center relative touch-none">
+                <div className="w-full h-screen bg-navy-900 flex flex-col items-center justify-center relative touch-none">
+                    {/* Minimalist Watermark/Aesthetic Text */}
+                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none z-10 flex flex-col items-center select-none text-center">
+                        <h1 className="text-white/80 tracking-[0.4em] text-4xl md:text-6xl font-light mb-4 drop-shadow-lg">
+                            WINTER <span className="font-bold">MUTE</span>
+                        </h1>
+                        <div className="w-16 h-[1px] bg-white/30 mb-4"></div>
+                        <p className="text-white/40 font-mono text-xs tracking-[0.3em] uppercase">10,000 Particle Render</p>
+                    </div>
+
                     <div className="w-full h-full cursor-crosshair">
                         {/* 
                           Important Performance Setup: 
-                          - camera=[0,0,0] sits INSIDE the environments. 
+                          - camera=[0,0,0] sits INSIDE the storm.
                           - dpr capped to 1.5 prevents integrated GPUs from choking on high-res Macbook/Windows screens.
                           - alpha=false prevents expensive frame-clears.
                         */}
-                        <Canvas dpr={Math.min(window.devicePixelRatio, 1.5)} camera={{ position: [0, 0, 0], fov: 60, near: 0.1, far: 500 }} gl={{ antialias: true, alpha: false }}>
-                            <color attach="background" args={['#020617']} />
+                        <Canvas dpr={Math.min(window.devicePixelRatio, 1.5)} camera={{ position: [0, 0, 0], fov: 60, near: 0.1, far: 80 }} gl={{ antialias: false, alpha: false }}>
+                            {/* Deep indigo/navy background color */}
+                            <color attach="background" args={['#070b19']} />
+                            
+                            {/* Fog hides the flakes popping out at the top/bottom bounds wrapping edges */}
+                            <fog attach="fog" args={['#070b19', 10, 50]} />
+                            
                             <Scene />
                         </Canvas>
                     </div>
