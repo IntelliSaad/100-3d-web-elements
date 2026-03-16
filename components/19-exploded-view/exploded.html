@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Procedural Snow Ambient Background</title>
+    <title>Authentic 3D Crystal Snow Background</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -55,18 +55,36 @@
         import * as THREE from 'three';
         import { Canvas, useFrame, useThree } from '@react-three/fiber';
 
-        const NUM_FLAKES = 10000; // Hyper-dense snowfall, extreme performance
+        // Official high-resolution transparent Snowflake Crystal textures from Three.js repo hosted on jsdelivr CDN
+        const CRYSTAL_TEXTURES = [
+            'https://cdn.jsdelivr.net/gh/mrdoob/three.js@master/examples/textures/sprites/snowflake1.png',
+            'https://cdn.jsdelivr.net/gh/mrdoob/three.js@master/examples/textures/sprites/snowflake2.png',
+            'https://cdn.jsdelivr.net/gh/mrdoob/three.js@master/examples/textures/sprites/snowflake3.png',
+            'https://cdn.jsdelivr.net/gh/mrdoob/three.js@master/examples/textures/sprites/snowflake4.png',
+            'https://cdn.jsdelivr.net/gh/mrdoob/three.js@master/examples/textures/sprites/snowflake5.png'
+        ];
 
-        const SnowyEnvironment = () => {
+        // 5 layers of 2000 crystals each = 10,000 real crystal particles total
+        const FLAKES_PER_LAYER = 2000; 
+
+        const CrystalLayer = ({ textureUrl }) => {
             const meshRef = useRef();
 
-            // Setup buffers outside the render loop
-            const { positions, velocities, scales, dummy } = useMemo(() => {
-                const pos = new Float32Array(NUM_FLAKES * 3);
-                const vel = new Float32Array(NUM_FLAKES * 3); // x=drift, y=fall speed, z=swirl
-                const scales = new Float32Array(NUM_FLAKES);
+            // Load texture and ensure high-quality sampling natively
+            const texture = useMemo(() => {
+                const tex = new THREE.TextureLoader().load(textureUrl);
+                tex.colorSpace = THREE.SRGBColorSpace;
+                return tex;
+            }, [textureUrl]);
+
+            // Setup memory buffers safely outside the render loop
+            const { positions, velocities, scales, rotations, dummy } = useMemo(() => {
+                const pos = new Float32Array(FLAKES_PER_LAYER * 3);
+                const vel = new Float32Array(FLAKES_PER_LAYER * 3); // x=drift, y=fall speed, z=swirl
+                const scl = new Float32Array(FLAKES_PER_LAYER);
+                const rot = new Float32Array(FLAKES_PER_LAYER); // Initial unique Z-spin angles
                 
-                for(let i = 0; i < NUM_FLAKES; i++) {
+                for(let i = 0; i < FLAKES_PER_LAYER; i++) {
                     // Spread flakes across a huge 100x100x100 volume
                     pos[i*3] = (Math.random() - 0.5) * 100;
                     pos[i*3+1] = (Math.random() - 0.5) * 100;
@@ -77,62 +95,67 @@
                     vel[i*3+1] = 0.5 + Math.random() * 1.5; // Y fall speed
                     vel[i*3+2] = (Math.random() - 0.5) * 0.5; // Z swirl
                     
-                    // Random flake sizing
-                    scales[i] = 0.5 + Math.random() * 1.5;
+                    // Random crystal sizing
+                    scl[i] = 0.5 + Math.random() * 2.5;
+
+                    // Initial random rotation so they don't all align
+                    rot[i] = Math.random() * Math.PI * 2;
                 }
 
-                return { positions: pos, velocities: vel, scales, dummy: new THREE.Object3D() };
+                return { positions: pos, velocities: vel, scales: scl, rotations: rot, dummy: new THREE.Object3D() };
             }, []);
 
             useFrame((state, delta) => {
                 const time = state.clock.elapsedTime;
                 
                 // Directly mutate Float32Arrays for extreme integrated graphics performance
-                for(let i = 0; i < NUM_FLAKES; i++) {
+                for(let i = 0; i < FLAKES_PER_LAYER; i++) {
                     const i3 = i * 3;
                     
                     // Apply downward velocity
                     positions[i3+1] -= velocities[i3+1] * delta * 5;
                     
-                    // Add wind/oscillation drift based on time and unique velocities
+                    // Add wind/oscillation drifting based on time and unique speeds
                     const windX = Math.sin(time * 0.5 + positions[i3+1] * 0.05) * velocities[i3];
                     const windZ = Math.cos(time * 0.5 + positions[i3+1] * 0.05) * velocities[i3+2];
                     
                     positions[i3] += windX * delta * 15;
                     positions[i3+2] += windZ * delta * 15;
 
-                    // If a snowflake hits the "ground" (-50), instantly teleport it to the "sky" (+50)
+                    // Floor collision -> Teleport back to sky seamlessly
                     if (positions[i3+1] < -50) {
                         positions[i3+1] = 50;
                         positions[i3] = (Math.random() - 0.5) * 100;
                         positions[i3+2] = (Math.random() - 0.5) * 100;
                     }
 
-                    // Update dummy matrix
+                    // Authentic Billboarding Technique:
                     dummy.position.set(positions[i3], positions[i3+1], positions[i3+2]);
                     
-                    // Slight spinning of the flakes
-                    dummy.rotation.x += delta * velocities[i3+1];
-                    dummy.rotation.y += delta * velocities[i3+2];
+                    // 1. Force the crystal plane to face the camera so it never looks like a flat paper edge
+                    dummy.quaternion.copy(state.camera.quaternion);
                     
-                    dummy.scale.setScalar(scales[i] * 0.04);
+                    // 2. Rotate the crystal locally on its own Z-axis so the snowflake actually spins beautifully as it falls
+                    dummy.rotateZ(rotations[i] + (time * velocities[i3+1] * 0.5));
+                    
+                    dummy.scale.setScalar(scales[i] * 0.5); // Size tuning
                     dummy.updateMatrix();
                     
                     meshRef.current.setMatrixAt(i, dummy.matrix);
                 }
 
-                // Push buffer update
                 meshRef.current.instanceMatrix.needsUpdate = true;
             });
 
             return (
-                <instancedMesh ref={meshRef} args={[null, null, NUM_FLAKES]}>
-                    <dodecahedronGeometry args={[1, 0]} />
-                    {/* Additive blending makes the snow look soft and glowing */}
+                <instancedMesh ref={meshRef} args={[null, null, FLAKES_PER_LAYER]}>
+                    <planeGeometry args={[1, 1]} />
+                    {/* Additive blending makes the snow crystals catch light beautifully over dark colors */}
                     <meshBasicMaterial 
+                        map={texture}
                         color="#ffffff" 
                         transparent 
-                        opacity={0.6} 
+                        opacity={0.8} 
                         blending={THREE.AdditiveBlending} 
                         depthWrite={false} 
                     />
@@ -151,7 +174,9 @@
 
             return (
                 <group>
-                    <SnowyEnvironment />
+                    {CRYSTAL_TEXTURES.map((url, index) => (
+                        <CrystalLayer key={index} textureUrl={url} />
+                    ))}
                 </group>
             );
         };
@@ -161,11 +186,11 @@
                 <div className="w-full h-screen bg-navy-900 flex flex-col items-center justify-center relative touch-none">
                     {/* Minimalist Watermark/Aesthetic Text */}
                     <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none z-10 flex flex-col items-center select-none text-center">
-                        <h1 className="text-white/80 tracking-[0.4em] text-4xl md:text-6xl font-light mb-4 drop-shadow-lg">
+                        <h1 className="text-white/90 tracking-[0.4em] text-4xl md:text-6xl font-light mb-4 drop-shadow-lg" style={{textShadow: '0 0 20px rgba(255,255,255,0.3)'}}>
                             WINTER <span className="font-bold">MUTE</span>
                         </h1>
-                        <div className="w-16 h-[1px] bg-white/30 mb-4"></div>
-                        <p className="text-white/40 font-mono text-xs tracking-[0.3em] uppercase">10,000 Particle Render</p>
+                        <div className="w-16 h-[1px] bg-white/40 mb-4"></div>
+                        <p className="text-white/50 font-mono text-xs tracking-[0.3em] uppercase">10,000 Authentic Crystals</p>
                     </div>
 
                     <div className="w-full h-full cursor-crosshair">
