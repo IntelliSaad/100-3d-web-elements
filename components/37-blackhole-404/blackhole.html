@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>404 - Event Horizon Reached</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: #000;
+            min-height: 100vh;
+            font-family: 'Inter', sans-serif;
+            color: white;
+            overflow: hidden;
+        }
+        #root { width: 100%; height: 100vh; position: relative; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="importmap">
+    {
+        "imports": {
+            "react": "https://esm.sh/react@18.2.0",
+            "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+            "framer-motion": "https://esm.sh/framer-motion@11.0.8?external=react,react-dom",
+            "three": "https://esm.sh/three@0.160.0",
+            "@react-three/fiber": "https://esm.sh/@react-three/fiber@8.15.14?external=react,react-dom,three",
+            "@react-three/drei": "https://esm.sh/@react-three/drei@9.96.1?external=react,react-dom,three,@react-three/fiber"
+        }
+    }
+    </script>
+
+    <script>
+        const origWarn = console.warn;
+        console.warn = function(...args) {
+            if (args[0] && typeof args[0] === 'string' && (args[0].includes('in-browser Babel transformer') || args[0].includes('cdn.tailwindcss.com should not be used in production'))) return;
+            origWarn.apply(console, args);
+        };
+    </script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <script type="text/babel" data-type="module">
+        import React, { useRef, useMemo, useEffect, useCallback } from 'react';
+        import { createRoot } from 'react-dom/client';
+        import { motion } from 'framer-motion';
+        import { Canvas, useFrame, useThree, extend } from '@react-three/fiber';
+        import * as THREE from 'three';
+
+        /* ── Custom Black Hole Shader Material ── */
+        const vertexShader = `
+            varying vec2 vUv;
+            void main() {
+                vUv = uv;
+                gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+            }
+        `;
+
+        const fragmentShader = `
+            precision highp float;
+            
+            uniform float uTime;
+            uniform vec2 uMouse;
+            uniform vec2 uResolution;
+            
+            varying vec2 vUv;
+            
+            #define PI 3.14159265359
+            
+            // Hash function for stars
+            float hash(vec2 p) {
+                float h = dot(p, vec2(127.1, 311.7));
+                return fract(sin(h) * 43758.5453123);
+            }
+            
+            // Smooth noise
+            float noise(vec2 p) {
+                vec2 i = floor(p);
+                vec2 f = fract(p);
+                f = f * f * (3.0 - 2.0 * f);
+                float a = hash(i);
+                float b = hash(i + vec2(1.0, 0.0));
+                float c = hash(i + vec2(0.0, 1.0));
+                float d = hash(i + vec2(1.0, 1.0));
+                return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+            }
+            
+            // FBM
+            float fbm(vec2 p) {
+                float v = 0.0;
+                float a = 0.5;
+                vec2 shift = vec2(100.0);
+                mat2 rot = mat2(cos(0.5), sin(0.5), -sin(0.5), cos(0.5));
+                for (int i = 0; i < 5; i++) {
+                    v += a * noise(p);
+                    p = rot * p * 2.0 + shift;
+                    a *= 0.5;
+                }
+                return v;
+            }
+            
+            // Star field
+            float stars(vec2 uv, float scale) {
+                vec2 grid = floor(uv * scale);
+                vec2 f = fract(uv * scale);
+                float star = 0.0;
+                float rnd = hash(grid);
+                if (rnd > 0.97) {
+                    vec2 center = vec2(hash(grid + 0.1), hash(grid + 0.2));
+                    float d = length(f - center);
+                    float brightness = smoothstep(0.05, 0.0, d) * (0.5 + 0.5 * sin(uTime * 2.0 + rnd * 100.0));
+                    star = brightness;
+                }
+                return star;
+            }
+            
+            void main() {
+                vec2 uv = vUv;
+                vec2 center = vec2(0.5);
+                
+                // Mouse influence on the gravitational center
+                vec2 mouseInfluence = (uMouse - 0.5) * 0.15;
+                vec2 bhCenter = center + mouseInfluence;
+                
+                vec2 toCenter = uv - bhCenter;
+                float dist = length(toCenter);
+                float angle = atan(toCenter.y, toCenter.x);
+                
+                // ── Gravitational Lensing ──
+                // Bend UV space toward the black hole
+                float warpStrength = 0.08 / (dist * dist + 0.02);
+                float spiralAngle = angle + warpStrength * 2.0 + uTime * 0.3;
+                float warpedDist = dist + warpStrength * 0.05;
+                vec2 warpedUV = bhCenter + vec2(cos(spiralAngle), sin(spiralAngle)) * warpedDist;
+                
+                // ── Background Stars ──
+                float starField = 0.0;
+                starField += stars(warpedUV, 80.0) * 0.8;
+                starField += stars(warpedUV + 0.337, 120.0) * 0.5;
+                starField += stars(warpedUV + 0.713, 200.0) * 0.3;
+                
+                // Dim stars near the event horizon
+                starField *= smoothstep(0.05, 0.35, dist);
+                
+                vec3 starColor = vec3(0.7, 0.8, 1.0) * starField;
+                // Add some colored stars
+                starColor += vec3(1.0, 0.5, 0.3) * stars(warpedUV + 0.123, 60.0) * 0.6;
+                starColor += vec3(0.3, 0.5, 1.0) * stars(warpedUV + 0.456, 90.0) * 0.5;
+                
+                // ── Accretion Disk ──
+                float diskAngle = angle + uTime * 0.5;
+                float diskNoise = fbm(vec2(diskAngle * 3.0, dist * 8.0 - uTime * 0.8));
+                
+                // Ring shape - bright band circling the black hole
+                float diskInner = 0.08;
+                float diskOuter = 0.28;
+                float diskShape = smoothstep(diskInner, diskInner + 0.06, dist) * 
+                                  smoothstep(diskOuter + 0.06, diskOuter, dist);
+                
+                // Doppler-like effect (brighter on one side)
+                float doppler = 0.6 + 0.4 * sin(angle + uTime * 0.4);
+                
+                // Disk color gradient (orange → blue shift)
+                vec3 diskColor = mix(
+                    vec3(1.0, 0.4, 0.05),  // Hot orange
+                    vec3(0.3, 0.5, 1.0),    // Blue shifted
+                    0.5 + 0.5 * sin(diskAngle * 2.0)
+                );
+                
+                // Add white-hot core to disk
+                diskColor = mix(diskColor, vec3(1.0, 0.95, 0.85), smoothstep(0.15, 0.09, dist) * 0.6);
+                
+                float diskFinal = diskShape * diskNoise * doppler * 1.5;
+                
+                // ── Photon Ring (bright thin ring at schwarzschild radius) ──
+                float photonRing = smoothstep(0.002, 0.0, abs(dist - 0.1)) * 0.8;
+                photonRing += smoothstep(0.003, 0.0, abs(dist - 0.105)) * 0.4;
+                vec3 photonColor = vec3(1.0, 0.85, 0.6) * photonRing;
+                
+                // ── The Void (event horizon) ──
+                float eventHorizon = 1.0 - smoothstep(0.0, 0.075, dist);
+                
+                // ── Radial Glow ──
+                float glow = 0.015 / (dist + 0.01);
+                vec3 glowColor = vec3(0.5, 0.3, 0.8) * glow * 0.25;
+                
+                // ── Lensed light arcs ──
+                float arc1 = smoothstep(0.003, 0.0, abs(dist - 0.13 - 0.01 * sin(angle * 5.0 + uTime))) * 0.2;
+                float arc2 = smoothstep(0.003, 0.0, abs(dist - 0.2 - 0.015 * sin(angle * 3.0 - uTime * 0.7))) * 0.1;
+                vec3 arcColor = vec3(0.6, 0.4, 1.0) * (arc1 + arc2);
+                
+                // ── Composite ──
+                vec3 color = vec3(0.0);
+                color += starColor;
+                color += diskColor * diskFinal;
+                color += photonColor;
+                color += glowColor;
+                color += arcColor;
+                
+                // Black hole void covers everything
+                color *= (1.0 - eventHorizon);
+                
+                // Subtle vignette
+                float vignette = 1.0 - dot(uv - 0.5, uv - 0.5) * 1.5;
+                color *= vignette;
+                
+                // Tone mapping
+                color = color / (color + vec3(1.0));
+                color = pow(color, vec3(0.85));
+                
+                gl_FragColor = vec4(color, 1.0);
+            }
+        `;
+
+        /* ── Black Hole Plane ── */
+        const BlackHolePlane = () => {
+            const meshRef = useRef();
+            const mousePos = useRef(new THREE.Vector2(0.5, 0.5));
+            const { viewport } = useThree();
+
+            const uniforms = useMemo(() => ({
+                uTime: { value: 0 },
+                uMouse: { value: new THREE.Vector2(0.5, 0.5) },
+                uResolution: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) },
+            }), []);
+
+            useEffect(() => {
+                const onMouseMove = (e) => {
+                    mousePos.current.set(
+                        e.clientX / window.innerWidth,
+                        1.0 - e.clientY / window.innerHeight
+                    );
+                };
+                window.addEventListener('mousemove', onMouseMove);
+                return () => window.removeEventListener('mousemove', onMouseMove);
+            }, []);
+
+            useFrame((state) => {
+                if (meshRef.current) {
+                    meshRef.current.material.uniforms.uTime.value = state.clock.elapsedTime;
+                    // Smooth mouse follow
+                    meshRef.current.material.uniforms.uMouse.value.lerp(mousePos.current, 0.05);
+                }
+            });
+
+            return (
+                <mesh ref={meshRef}>
+                    <planeGeometry args={[viewport.width, viewport.height, 1, 1]} />
+                    <shaderMaterial
+                        vertexShader={vertexShader}
+                        fragmentShader={fragmentShader}
+                        uniforms={uniforms}
+                    />
+                </mesh>
+            );
+        };
+
+        /* ── Overlay HTML UI ── */
+        const OverlayUI = () => (
+            <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center" style={{ fontFamily: "'Inter', sans-serif" }}>
+                {/* Error Code */}
+                <motion.div
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ duration: 1.2, ease: [0.16, 1, 0.3, 1] }}
+                    className="text-center"
+                >
+                    <motion.h1
+                        className="text-[120px] md:text-[180px] font-black tracking-tighter leading-none"
+                        style={{
+                            background: 'linear-gradient(180deg, rgba(255,255,255,0.15) 0%, rgba(255,255,255,0.02) 100%)',
+                            WebkitBackgroundClip: 'text',
+                            WebkitTextFillColor: 'transparent',
+                            textShadow: 'none',
+                        }}
+                    >
+                        404
+                    </motion.h1>
+                </motion.div>
+
+                <motion.div
+                    initial={{ opacity: 0, y: 30 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.8, delay: 0.5 }}
+                    className="text-center mt-[-20px]"
+                >
+                    <h2 className="text-xl md:text-2xl font-black tracking-widest uppercase mb-3"
+                        style={{ color: 'rgba(255,160,100,0.6)' }}>
+                        Event Horizon Reached
+                    </h2>
+                    <p className="text-sm text-white/20 max-w-md mx-auto leading-relaxed mb-8">
+                        You've crossed the Schwarzschild radius. The page you're looking for has passed beyond the event horizon and can no longer be retrieved.
+                    </p>
+
+                    {/* CTA Button */}
+                    <motion.button
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        className="pointer-events-auto px-8 py-3.5 rounded-xl text-sm font-bold uppercase tracking-widest transition-all"
+                        style={{
+                            background: 'linear-gradient(135deg, rgba(255,120,50,0.2), rgba(130,80,255,0.2))',
+                            border: '1px solid rgba(255,140,80,0.25)',
+                            color: 'rgba(255,180,120,0.8)',
+                            boxShadow: '0 0 40px rgba(255,120,50,0.1)',
+                            backdropFilter: 'blur(10px)',
+                        }}
+                        onClick={() => window.history.back()}
+                    >
+                        ← Escape Velocity
+                    </motion.button>
+                </motion.div>
+
+                {/* Bottom Hint */}
+                <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 1.5 }}
+                    className="absolute bottom-6 left-0 right-0 text-center"
+                >
+                    <p className="text-[10px] font-mono text-white/8 uppercase tracking-[4px]"
+                       style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+                        Move your cursor to bend spacetime
+                    </p>
+                </motion.div>
+
+                {/* Scan Lines Effect */}
+                <div
+                    className="absolute inset-0 pointer-events-none"
+                    style={{
+                        background: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px)',
+                        mixBlendMode: 'multiply',
+                    }}
+                />
+
+                {/* Top-left corner info */}
+                <div className="absolute top-6 left-6">
+                    <div className="flex items-center gap-2 mb-1">
+                        <div className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse shadow-[0_0_8px_#ef4444]" />
+                        <span className="text-[9px] font-mono font-bold uppercase tracking-[3px] text-red-400/50"
+                              style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+                            Signal Lost
+                        </span>
+                    </div>
+                </div>
+
+                {/* Top-right coordinates */}
+                <div className="absolute top-6 right-6 text-right">
+                    <motion.span
+                        animate={{ opacity: [0.2, 0.5, 0.2] }}
+                        transition={{ repeat: Infinity, duration: 3 }}
+                        className="text-[9px] font-mono text-white/15 block"
+                        style={{ fontFamily: "'JetBrains Mono', monospace" }}
+                    >
+                        RA 17h 45m 40.0s
+                    </motion.span>
+                    <motion.span
+                        animate={{ opacity: [0.15, 0.4, 0.15] }}
+                        transition={{ repeat: Infinity, duration: 3, delay: 0.5 }}
+                        className="text-[9px] font-mono text-white/15 block"
+                        style={{ fontFamily: "'JetBrains Mono', monospace" }}
+                    >
+                        DEC -29° 0' 28"
+                    </motion.span>
+                </div>
+            </div>
+        );
+
+        /* ── App ── */
+        const App = () => (
+            <div className="relative w-full h-full">
+                <Canvas
+                    camera={{ position: [0, 0, 1], fov: 75 }}
+                    gl={{ antialias: false, alpha: false }}
+                    style={{ background: '#000' }}
+                >
+                    <BlackHolePlane />
+                </Canvas>
+                <OverlayUI />
+            </div>
+        );
+
+        const root = createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>

@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Procedural 3D Cylinder Roller Tabs</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { margin: 0; background: #0a0a1a; min-height: 100vh; overflow: hidden; font-family: 'Inter', sans-serif; color: white; }
+        #root { width: 100%; height: 100vh; }
+    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="importmap">
+    {
+        "imports": {
+            "react": "https://esm.sh/react@18.2.0",
+            "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+            "three": "https://esm.sh/three@0.160.0",
+            "@react-three/fiber": "https://esm.sh/@react-three/fiber@8.15.14?external=react,react-dom,three",
+            "@react-three/drei": "https://esm.sh/@react-three/drei@9.92.7?external=react,react-dom,three,@react-three/fiber"
+        }
+    }
+    </script>
+
+    <script>
+        const origWarn = console.warn;
+        console.warn = function(...args) {
+            if (args[0] && typeof args[0] === 'string' && (args[0].includes('in-browser Babel transformer') || args[0].includes('cdn.tailwindcss.com should not be used in production'))) return;
+            origWarn.apply(console, args);
+        };
+    </script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <script type="text/babel" data-type="module">
+        import React, { useRef, useState, useMemo, useEffect } from 'react';
+        import { createRoot } from 'react-dom/client';
+        import * as THREE from 'three';
+        import { Canvas, useFrame, useThree } from '@react-three/fiber';
+        import { Text, RoundedBox } from '@react-three/drei';
+
+        const TABS = [
+            { label: 'Dashboard', color: '#8b5cf6', content: 'Real-time analytics, KPI tracking, and data visualization in one unified command center.' },
+            { label: 'Projects', color: '#06b6d4', content: 'Kanban boards, Gantt charts, and sprint planning tools for agile teams.' },
+            { label: 'Messages', color: '#ec4899', content: 'Encrypted team messaging with threads, reactions, and file sharing.' },
+            { label: 'Settings', color: '#f59e0b', content: 'Configure workspace preferences, integrations, API keys, and team permissions.' },
+        ];
+
+        const NUM_FACES = TABS.length;
+        const ANGLE_PER_FACE = (Math.PI * 2) / NUM_FACES;
+
+        const CylinderRoller = ({ activeIndex, onRollComplete }) => {
+            const groupRef = useRef();
+            const targetRotation = useRef(0);
+            const currentRotation = useRef(0);
+            const { invalidate } = useThree();
+            const isAnimating = useRef(false);
+
+            useEffect(() => {
+                targetRotation.current = -activeIndex * ANGLE_PER_FACE;
+                isAnimating.current = true;
+                invalidate();
+            }, [activeIndex]);
+
+            useFrame(() => {
+                if (!isAnimating.current) return;
+
+                const diff = targetRotation.current - currentRotation.current;
+                currentRotation.current += diff * 0.08;
+
+                if (Math.abs(diff) < 0.001) {
+                    currentRotation.current = targetRotation.current;
+                    isAnimating.current = false;
+                }
+
+                groupRef.current.rotation.x = currentRotation.current;
+                invalidate();
+            });
+
+            // Build each face as a RoundedBox with Text
+            const radius = 2.5;
+
+            return (
+                <group ref={groupRef}>
+                    {TABS.map((tab, i) => {
+                        const angle = i * ANGLE_PER_FACE;
+                        // Position each face on the cylinder surface
+                        const y = Math.cos(angle) * radius;
+                        const z = Math.sin(angle) * radius;
+
+                        return (
+                            <group key={i} position={[0, y, z]} rotation={[angle, 0, 0]}>
+                                {/* Card face */}
+                                <RoundedBox args={[5, 2, 0.08]} radius={0.15} smoothness={4}>
+                                    <meshStandardMaterial 
+                                        color={tab.color} 
+                                        metalness={0.3} 
+                                        roughness={0.6}
+                                        transparent
+                                        opacity={0.9}
+                                    />
+                                </RoundedBox>
+                                {/* Label Text */}
+                                <Text
+                                    position={[0, 0, 0.06]}
+                                    fontSize={0.5}
+                                    font="https://fonts.gstatic.com/s/inter/v12/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuLyfMZg.woff"
+                                    color="#fff"
+                                    anchorX="center"
+                                    anchorY="middle"
+                                    fontWeight={700}
+                                    letterSpacing={0.05}
+                                >
+                                    {tab.label.toUpperCase()}
+                                </Text>
+                                {/* Subtle index indicator */}
+                                <Text
+                                    position={[-2.1, 0.6, 0.06]}
+                                    fontSize={0.2}
+                                    color="rgba(255,255,255,0.5)"
+                                    anchorX="left"
+                                    anchorY="middle"
+                                    font="https://fonts.gstatic.com/s/inter/v12/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuLyfMZg.woff"
+                                >
+                                    {`0${i + 1}`}
+                                </Text>
+                            </group>
+                        );
+                    })}
+                </group>
+            );
+        };
+
+        const App = () => {
+            const [activeIndex, setActiveIndex] = useState(0);
+
+            const goNext = () => setActiveIndex(prev => (prev + 1) % NUM_FACES);
+            const goPrev = () => setActiveIndex(prev => (prev - 1 + NUM_FACES) % NUM_FACES);
+
+            return (
+                <div className="w-full h-full flex flex-col items-center justify-center" style={{ background: 'linear-gradient(160deg, #0a0a1a 0%, #0f172a 40%, #1a1040 100%)' }}>
+                    {/* 3D Cylinder Canvas */}
+                    <div className="w-full max-w-xl" style={{ height: '220px' }}>
+                        <Canvas
+                            frameloop="demand"
+                            dpr={Math.min(window.devicePixelRatio, 1.5)}
+                            camera={{ position: [0, 0, 7], fov: 45 }}
+                            gl={{ antialias: true, alpha: false }}
+                        >
+                            <color attach="background" args={['#0a0a1a']} />
+                            <ambientLight intensity={0.6} />
+                            <pointLight position={[5, 5, 5]} intensity={1} />
+                            <pointLight position={[-5, -2, 3]} intensity={0.5} color="#8b5cf6" />
+                            <CylinderRoller activeIndex={activeIndex} />
+                        </Canvas>
+                    </div>
+
+                    {/* Navigation Controls */}
+                    <div className="flex items-center gap-4 mt-4 mb-6">
+                        <button 
+                            onClick={goPrev}
+                            className="px-4 py-2.5 rounded-xl text-sm font-semibold cursor-pointer transition-all hover:scale-105 active:scale-95"
+                            style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.1)', color: '#e2e8f0' }}
+                        >
+                            ← Prev
+                        </button>
+
+                        {/* Tab Indicators */}
+                        <div className="flex gap-2">
+                            {TABS.map((tab, i) => (
+                                <button
+                                    key={i}
+                                    onClick={() => setActiveIndex(i)}
+                                    className="w-3 h-3 rounded-full cursor-pointer transition-all duration-300"
+                                    style={{
+                                        background: activeIndex === i ? tab.color : 'rgba(255,255,255,0.15)',
+                                        boxShadow: activeIndex === i ? `0 0 12px ${tab.color}` : 'none',
+                                        transform: activeIndex === i ? 'scale(1.3)' : 'scale(1)',
+                                    }}
+                                />
+                            ))}
+                        </div>
+
+                        <button 
+                            onClick={goNext}
+                            className="px-4 py-2.5 rounded-xl text-sm font-semibold cursor-pointer transition-all hover:scale-105 active:scale-95"
+                            style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.1)', color: '#e2e8f0' }}
+                        >
+                            Next →
+                        </button>
+                    </div>
+
+                    {/* Active Tab Content */}
+                    <div 
+                        className="max-w-md text-center px-6 py-5 rounded-2xl transition-all duration-500"
+                        style={{
+                            background: 'rgba(255,255,255,0.04)',
+                            border: `1px solid ${TABS[activeIndex].color}33`,
+                            boxShadow: `0 0 30px ${TABS[activeIndex].color}15`,
+                        }}
+                    >
+                        <h3 className="text-lg font-bold mb-2" style={{ color: TABS[activeIndex].color }}>
+                            {TABS[activeIndex].label}
+                        </h3>
+                        <p className="text-slate-400 text-sm leading-relaxed">
+                            {TABS[activeIndex].content}
+                        </p>
+                    </div>
+                </div>
+            );
+        };
+
+        const root = createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>

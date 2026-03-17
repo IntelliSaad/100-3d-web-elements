@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Rolodex Testimonial Carousel</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: #08080c;
+            min-height: 100vh;
+            font-family: 'Inter', sans-serif;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            overflow: hidden;
+        }
+        #root { width: 100%; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 40px 20px; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="importmap">
+    {
+        "imports": {
+            "react": "https://esm.sh/react@18.2.0",
+            "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+            "framer-motion": "https://esm.sh/framer-motion@11.0.8?external=react,react-dom"
+        }
+    }
+    </script>
+
+    <script>
+        const origWarn = console.warn;
+        console.warn = function(...args) {
+            if (args[0] && typeof args[0] === 'string' && (args[0].includes('in-browser Babel transformer') || args[0].includes('cdn.tailwindcss.com should not be used in production'))) return;
+            origWarn.apply(console, args);
+        };
+    </script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <script type="text/babel" data-type="module">
+        import React, { useState, useRef, useCallback, useEffect } from 'react';
+        import { createRoot } from 'react-dom/client';
+        import { motion, AnimatePresence } from 'framer-motion';
+
+        const testimonials = [
+            {
+                id: 1,
+                name: 'Sarah Chen',
+                role: 'VP of Engineering',
+                company: 'Stripe',
+                avatar: '👩‍💻',
+                rating: 5,
+                quote: 'This platform completely transformed our deployment pipeline. We went from 2-hour releases to continuous delivery in under a week. The DX is genuinely world-class.',
+                accent: '#818cf8',
+            },
+            {
+                id: 2,
+                name: 'Marcus Johnson',
+                role: 'CTO',
+                company: 'Vercel',
+                avatar: '👨‍💼',
+                rating: 5,
+                quote: 'The performance monitoring alone saved us $200K in infrastructure costs. Real-time insights with zero overhead — exactly what modern teams need.',
+                accent: '#34d399',
+            },
+            {
+                id: 3,
+                name: 'Elena Rodriguez',
+                role: 'Lead Architect',
+                company: 'Shopify',
+                avatar: '👩‍🔬',
+                rating: 5,
+                quote: 'We evaluated 12 platforms before choosing this one. The API design is elegant, the documentation is flawless, and the support team responds in minutes, not days.',
+                accent: '#f472b6',
+            },
+            {
+                id: 4,
+                name: 'James Williams',
+                role: 'Staff Engineer',
+                company: 'GitHub',
+                avatar: '🧑‍💻',
+                rating: 5,
+                quote: 'From prototyping to production in record time. The type safety and built-in testing framework caught bugs we didn\'t even know existed. Absolute game changer.',
+                accent: '#fbbf24',
+            },
+            {
+                id: 5,
+                name: 'Anya Patel',
+                role: 'Director of Product',
+                company: 'Linear',
+                avatar: '👩‍🎨',
+                rating: 5,
+                quote: 'Our team\'s velocity increased by 40% within the first month. The integrations are seamless and the onboarding experience is the smoothest I\'ve ever seen in enterprise software.',
+                accent: '#06b6d4',
+            },
+            {
+                id: 6,
+                name: 'David Kim',
+                role: 'Founding Engineer',
+                company: 'Notion',
+                avatar: '👨‍🚀',
+                rating: 5,
+                quote: 'The collaborative features are unmatched. Real-time pair programming, shared terminals, and instant deployments — it feels like the future of development is already here.',
+                accent: '#a78bfa',
+            },
+        ];
+
+        const CARD_COUNT = testimonials.length;
+        const ANGLE_PER_CARD = 360 / CARD_COUNT;
+        const RADIUS = 340; // translateZ radius in px
+
+        /* ── Single Testimonial Card ── */
+        const TestimonialCard = ({ testimonial, angle, isFront }) => {
+            // Normalize angle to 0-360
+            let normAngle = ((angle % 360) + 360) % 360;
+            if (normAngle > 180) normAngle -= 360;
+
+            const absAngle = Math.abs(normAngle);
+            const opacity = Math.max(1 - absAngle / 140, 0.05);
+            const scale = Math.max(1 - absAngle / 400, 0.65);
+            const blur = absAngle > 90 ? Math.min((absAngle - 90) / 30, 4) : 0;
+
+            return (
+                <motion.div
+                    animate={{
+                        rotateX: angle,
+                        opacity,
+                        scale,
+                    }}
+                    transition={{
+                        type: 'spring',
+                        stiffness: 120,
+                        damping: 22,
+                        mass: 0.8,
+                    }}
+                    style={{
+                        position: 'absolute',
+                        width: '420px',
+                        transformOrigin: `center center -${RADIUS}px`,
+                        filter: `blur(${blur}px)`,
+                        willChange: 'transform, opacity',
+                    }}
+                >
+                    <div
+                        className="rounded-2xl p-7 border backdrop-blur-xl relative overflow-hidden"
+                        style={{
+                            background: isFront
+                                ? `linear-gradient(135deg, ${testimonial.accent}10, rgba(15,15,25,0.95))`
+                                : 'rgba(15,15,25,0.85)',
+                            borderColor: isFront ? `${testimonial.accent}35` : 'rgba(255,255,255,0.04)',
+                            boxShadow: isFront
+                                ? `0 25px 60px rgba(0,0,0,0.5), 0 0 40px ${testimonial.accent}10`
+                                : '0 10px 30px rgba(0,0,0,0.3)',
+                        }}
+                    >
+                        {/* Glow line */}
+                        <div
+                            className="absolute top-0 left-0 right-0 h-[2px]"
+                            style={{
+                                background: `linear-gradient(90deg, transparent, ${testimonial.accent}50, transparent)`,
+                                opacity: isFront ? 1 : 0.2,
+                            }}
+                        />
+
+                        {/* Star Rating */}
+                        <div className="flex gap-1 mb-4">
+                            {Array.from({ length: testimonial.rating }).map((_, i) => (
+                                <span key={i} className="text-sm" style={{ color: testimonial.accent }}>★</span>
+                            ))}
+                        </div>
+
+                        {/* Quote */}
+                        <p className="text-[14px] leading-relaxed text-white/60 mb-5 italic">
+                            "{testimonial.quote}"
+                        </p>
+
+                        {/* Author */}
+                        <div className="flex items-center gap-3">
+                            <div
+                                className="w-11 h-11 rounded-full flex items-center justify-center text-xl"
+                                style={{ background: `${testimonial.accent}15`, border: `1px solid ${testimonial.accent}25` }}
+                            >
+                                {testimonial.avatar}
+                            </div>
+                            <div>
+                                <h4 className="text-sm font-bold text-white/90">{testimonial.name}</h4>
+                                <p className="text-[11px] text-white/30">
+                                    {testimonial.role} · <span style={{ color: `${testimonial.accent}90` }}>{testimonial.company}</span>
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </motion.div>
+            );
+        };
+
+        /* ── App ── */
+        const App = () => {
+            const [currentIndex, setCurrentIndex] = useState(0);
+            const touchStartY = useRef(0);
+            const isAnimating = useRef(false);
+
+            const goNext = useCallback(() => {
+                if (isAnimating.current) return;
+                isAnimating.current = true;
+                setCurrentIndex(prev => prev + 1);
+                setTimeout(() => { isAnimating.current = false; }, 500);
+            }, []);
+
+            const goPrev = useCallback(() => {
+                if (isAnimating.current) return;
+                isAnimating.current = true;
+                setCurrentIndex(prev => prev - 1);
+                setTimeout(() => { isAnimating.current = false; }, 500);
+            }, []);
+
+            // Keyboard + Wheel
+            useEffect(() => {
+                const handleKeyDown = (e) => {
+                    if (e.key === 'ArrowDown' || e.key === 'ArrowRight') goNext();
+                    if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') goPrev();
+                };
+                const handleWheel = (e) => {
+                    if (Math.abs(e.deltaY) > 30) {
+                        e.deltaY > 0 ? goNext() : goPrev();
+                    }
+                };
+                window.addEventListener('keydown', handleKeyDown);
+                window.addEventListener('wheel', handleWheel, { passive: true });
+                return () => {
+                    window.removeEventListener('keydown', handleKeyDown);
+                    window.removeEventListener('wheel', handleWheel);
+                };
+            }, [goNext, goPrev]);
+
+            // Touch events
+            const handleTouchStart = (e) => { touchStartY.current = e.touches[0].clientY; };
+            const handleTouchEnd = (e) => {
+                const diff = touchStartY.current - e.changedTouches[0].clientY;
+                if (Math.abs(diff) > 40) {
+                    diff > 0 ? goNext() : goPrev();
+                }
+            };
+
+            // Auto-play
+            useEffect(() => {
+                const interval = setInterval(goNext, 4000);
+                return () => clearInterval(interval);
+            }, [goNext]);
+
+            const activeTestimonial = testimonials[((currentIndex % CARD_COUNT) + CARD_COUNT) % CARD_COUNT];
+
+            return (
+                <div
+                    className="flex flex-col items-center gap-4 w-full max-w-3xl mx-auto"
+                    onTouchStart={handleTouchStart}
+                    onTouchEnd={handleTouchEnd}
+                >
+                    {/* Header — positioned well above cards */}
+                    <div className="text-center mb-2">
+                        <span
+                            className="inline-block px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-[3px] mb-3"
+                            style={{ background: 'rgba(129,140,248,0.1)', color: '#818cf8', border: '1px solid rgba(129,140,248,0.2)' }}
+                        >
+                            Testimonials
+                        </span>
+                        <h1
+                            className="text-3xl md:text-4xl font-black tracking-tight mb-1"
+                            style={{ background: 'linear-gradient(135deg, #fff, rgba(255,255,255,0.5))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}
+                        >
+                            Loved by Engineers
+                        </h1>
+                        <p className="text-sm text-white/25">What our customers are saying about us</p>
+                    </div>
+
+                    {/* 3D Rolodex Container */}
+                    <div
+                        className="relative flex items-center justify-center"
+                        style={{
+                            width: '420px',
+                            height: '320px',
+                            perspective: '1200px',
+                            perspectiveOrigin: 'center center',
+                        }}
+                    >
+                        <div
+                            style={{
+                                position: 'relative',
+                                width: '100%',
+                                height: '100%',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                transformStyle: 'preserve-3d',
+                            }}
+                        >
+                            {testimonials.map((t, i) => {
+                                const angle = (i - currentIndex) * ANGLE_PER_CARD;
+                                const normAngle = ((angle % 360) + 360) % 360;
+                                const isFront = normAngle < 5 || normAngle > 355;
+
+                                return (
+                                    <TestimonialCard
+                                        key={t.id}
+                                        testimonial={t}
+                                        angle={angle}
+                                        isFront={isFront}
+                                    />
+                                );
+                            })}
+                        </div>
+                    </div>
+
+                    {/* Navigation */}
+                    <div className="flex items-center gap-6">
+                        <button
+                            onClick={goPrev}
+                            className="w-12 h-12 rounded-full flex items-center justify-center transition-all hover:scale-110 active:scale-95"
+                            style={{
+                                background: 'rgba(255,255,255,0.04)',
+                                border: '1px solid rgba(255,255,255,0.08)',
+                            }}
+                        >
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.5)" strokeWidth="2.5" strokeLinecap="round">
+                                <path d="M18 15l-6-6-6 6" />
+                            </svg>
+                        </button>
+
+                        {/* Dots */}
+                        <div className="flex gap-2">
+                            {testimonials.map((t, i) => {
+                                const isActive = ((currentIndex % CARD_COUNT) + CARD_COUNT) % CARD_COUNT === i;
+                                return (
+                                    <button
+                                        key={i}
+                                        onClick={() => setCurrentIndex(i)}
+                                        className="transition-all hover:scale-150"
+                                        style={{
+                                            width: isActive ? '20px' : '8px',
+                                            height: '8px',
+                                            borderRadius: '4px',
+                                            background: isActive ? t.accent : 'rgba(255,255,255,0.1)',
+                                            boxShadow: isActive ? `0 0 12px ${t.accent}50` : 'none',
+                                        }}
+                                    />
+                                );
+                            })}
+                        </div>
+
+                        <button
+                            onClick={goNext}
+                            className="w-12 h-12 rounded-full flex items-center justify-center transition-all hover:scale-110 active:scale-95"
+                            style={{
+                                background: 'rgba(255,255,255,0.04)',
+                                border: '1px solid rgba(255,255,255,0.08)',
+                            }}
+                        >
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.5)" strokeWidth="2.5" strokeLinecap="round">
+                                <path d="M6 9l6 6 6-6" />
+                            </svg>
+                        </button>
+                    </div>
+
+                    {/* Footer */}
+                    <p className="text-[10px] text-white/10 uppercase tracking-[3px]">
+                        ✦ Scroll · Swipe · Arrow Keys ✦
+                    </p>
+                </div>
+            );
+        };
+
+        const root = createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
