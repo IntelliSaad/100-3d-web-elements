@@ -100,6 +100,3 @@ Contributions are what make the open-source community an amazing place to learn,
 ## 📄 License
 Distributed under the MIT License. See `LICENSE` for more information.
 
----
-
-*Engineered with 10 years of UI/UX expertise in High-Performance Spatial Design.*
