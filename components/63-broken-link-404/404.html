@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Broken Link 404</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { margin: 0; background: #000; min-height: 100vh; overflow: hidden; font-family: 'Inter', sans-serif; }
+        #root { width: 100%; height: 100vh; cursor: crosshair; }
+    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
+    <script type="importmap">
+    {
+        "imports": {
+            "react": "https://esm.sh/react@18.2.0",
+            "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+            "three": "https://esm.sh/three@0.154.0",
+            "@react-three/fiber": "https://esm.sh/@react-three/fiber@8.13.6?external=react,react-dom,three",
+            "@react-three/drei": "https://esm.sh/@react-three/drei@9.80.3?external=react,react-dom,three,@react-three/fiber"
+        }
+    }
+    </script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel" data-type="module">
+        import React, { useRef, useState, useEffect } from 'react';
+        import { createRoot } from 'react-dom/client';
+        import { Canvas, useFrame, useThree } from '@react-three/fiber';
+        import { Text, Environment, ContactShadows, Float } from '@react-three/drei';
+        import * as THREE from 'three';
+
+        // Custom font file for 3D text
+        const FONT_URL = "https://fonts.gstatic.com/s/inter/v12/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuLyfMZhrib2Bg-4.ttf";
+
+        const BrokenPiece = ({ char, position, rotation, mouse, index }) => {
+            const ref = useRef();
+            
+            // Random distinct offset for each piece to give chaos
+            const randomOffset = useRef(new THREE.Vector3(
+                (Math.random() - 0.5) * 2,
+                (Math.random() - 0.5) * 2,
+                (Math.random() - 0.5) * 2
+            ));
+
+            useFrame((state) => {
+                const t = state.clock.getElapsedTime();
+                const mx = mouse.current[0];
+                const my = mouse.current[1];
+
+                // Attempt to "align" the chain when mouse is near center, 
+                // but wildly drift apart when mouse moves away (broken connection logic)
+                const distanceToCenter = Math.sqrt(mx * mx + my * my);
+                const brokenForce = distanceToCenter * 4; 
+
+                // Chaotic target position based on mouse force
+                const targetX = position[0] + mx * 3 + Math.sin(t + index) * brokenForce;
+                const targetY = position[1] + my * 3 + Math.cos(t + index) * brokenForce;
+                const targetZ = position[2] + Math.sin(t * 1.5 + index) * brokenForce;
+
+                // Move smoothly towards target
+                ref.current.position.x = THREE.MathUtils.lerp(ref.current.position.x, targetX, 0.03);
+                ref.current.position.y = THREE.MathUtils.lerp(ref.current.position.y, targetY, 0.03);
+                ref.current.position.z = THREE.MathUtils.lerp(ref.current.position.z, targetZ, 0.03);
+
+                // Rotate chaotically based on the "broken force"
+                ref.current.rotation.x = THREE.MathUtils.lerp(ref.current.rotation.x, rotation[0] + my * Math.PI + Math.sin(t) * brokenForce * 0.5, 0.02);
+                ref.current.rotation.y = THREE.MathUtils.lerp(ref.current.rotation.y, rotation[1] + mx * Math.PI + Math.cos(t) * brokenForce * 0.5, 0.02);
+                ref.current.rotation.z = THREE.MathUtils.lerp(ref.current.rotation.z, rotation[2] + (brokenForce * 0.2), 0.02);
+            });
+
+            return (
+                <group ref={ref}>
+                    {/* The metal chunk (faking a broken chain link piece) */}
+                    <mesh castShadow receiveShadow>
+                        <cylinderGeometry args={[0.8, 0.8, 3, 32]} />
+                        <meshStandardMaterial 
+                            color="#1e293b" 
+                            roughness={0.2} 
+                            metalness={0.9} 
+                            envMapIntensity={2} 
+                        />
+                    </mesh>
+
+                    {/* Jagged broken edge at top */}
+                    <mesh position={[0, 1.5, 0]} rotation={[Math.random(), Math.random(), 0]}>
+                        <dodecahedronGeometry args={[0.8, 1]} />
+                        <meshStandardMaterial color="#0f172a" roughness={0.5} metalness={0.5} />
+                    </mesh>
+
+                    {/* Jagged broken edge at bottom */}
+                    <mesh position={[0, -1.5, 0]} rotation={[Math.random(), Math.random(), 0]}>
+                        <dodecahedronGeometry args={[0.8, 1]} />
+                        <meshStandardMaterial color="#0f172a" roughness={0.5} metalness={0.5} />
+                    </mesh>
+
+                    {/* Paint the "4", "0", "4" directly on the piece surface */}
+                    <Text 
+                        position={[0, 0, 0.85]} 
+                        fontSize={1.8} 
+                        font={FONT_URL}
+                        color="#ef4444" 
+                        anchorX="center" 
+                        anchorY="middle"
+                        outlineWidth={0.05}
+                        outlineColor="#000"
+                    >
+                        {char}
+                    </Text>
+                </group>
+            );
+        };
+
+        const Scene = ({ mouse }) => {
+            return (
+                <>
+                    <ambientLight intensity={0.2} />
+                    <directionalLight position={[10, 10, 5]} intensity={1.5} color="#38bdf8" castShadow />
+                    <directionalLight position={[-10, -5, -5]} intensity={2} color="#f43f5e" />
+                    
+                    {/* Pieces of the chain, initially positioned in a row, but chaotic */}
+                    <BrokenPiece char="4" position={[-3, 0, 0]} rotation={[0, 0, 0.2]} mouse={mouse} index={1} />
+                    <BrokenPiece char="0" position={[0, 0, 0]} rotation={[0, 0, -0.1]} mouse={mouse} index={2} />
+                    <BrokenPiece char="4" position={[3, 0, 0]} rotation={[0, 0, 0.3]} mouse={mouse} index={3} />
+
+                    <Environment preset="city" />
+                    
+                    {/* Deep shadow under the void */}
+                    <ContactShadows position={[0, -5, 0]} opacity={0.4} scale={20} blur={2} far={10} color="#000" />
+                </>
+            );
+        };
+
+        const App = () => {
+            const mouse = useRef([0, 0]);
+
+            const handleMouseMove = (e) => {
+                // Normalize mouse position between -1 and 1
+                mouse.current[0] = (e.clientX / window.innerWidth) * 2 - 1;
+                mouse.current[1] = -(e.clientY / window.innerHeight) * 2 + 1;
+            };
+
+            return (
+                <div className="w-full h-full relative" onMouseMove={handleMouseMove}>
+                    <div className="absolute top-10 w-full text-center z-10 pointer-events-none">
+                        <h1 className="text-xl font-bold text-slate-500 uppercase tracking-[0.5em]">Connection Severed</h1>
+                    </div>
+                    
+                    <Canvas camera={{ position: [0, 0, 12], fov: 40 }} shadows>
+                        <color attach="background" args={["#030712"]} />
+                        {/* Deep void fog */}
+                        <fog attach="fog" args={["#030712", 10, 30]} />
+                        <Scene mouse={mouse} />
+                    </Canvas>
+                    
+                    <div className="absolute bottom-10 w-full text-center z-10 pointer-events-none">
+                        <p className="text-slate-600 font-medium">Move your mouse to try and align the broken link.</p>
+                    </div>
+                </div>
+            );
+        };
+
+        createRoot(document.getElementById('root')).render(<App />);
+    </script>
+</body>
+</html>

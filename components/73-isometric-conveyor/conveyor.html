@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2.5D Isometric Conveyor Belt Progress</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { margin: 0; background: #0f172a; min-height: 100vh; overflow: hidden; font-family: 'Inter', sans-serif; }
+        .preserve-3d { transform-style: preserve-3d; perspective: 1800px; }
+        
+        /* The infinite moving texture */
+        .conveyor-belt {
+            background: repeating-linear-gradient(
+                0deg,
+                #334155, 
+                #334155 20px, 
+                #1e293b 20px, 
+                #1e293b 40px
+            );
+            background-size: 100% 80px;
+        }
+
+        @keyframes moveBelt {
+            0% { background-position: 0px 0px; }
+            100% { background-position: 0px 80px; } /* Must perfectly match the tile size */
+        }
+        
+    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
+    <script type="importmap">
+    {
+        "imports": {
+            "react": "https://esm.sh/react@18.2.0",
+            "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+            "framer-motion": "https://esm.sh/framer-motion@10.16.4?external=react,react-dom"
+        }
+    }
+    </script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel" data-type="module">
+        import React, { useState, useEffect } from 'react';
+        import { createRoot } from 'react-dom/client';
+        import { motion, AnimatePresence } from 'framer-motion';
+
+        const Block = ({ id, onComplete }) => {
+            // Drop from above, land, then move along Y
+            return (
+                <motion.div
+                    className="absolute w-20 h-20 preserve-3d"
+                    // Isometric coordinate logic mapping:
+                    // The belt is an isometric plane. We drop exactly on spot (y=0) and slide to y=500.
+                    initial={{ z: 200, y: 0, opacity: 0, rotateZ: 0 }}
+                    animate={{ z: 0, y: 550, opacity: [0, 1, 1, 1, 0] }}
+                    transition={{
+                        duration: 3, 
+                        // Start fast drop, then linear moving along the belt, then fade out
+                        times: [0, 0.15, 0.8, 0.9, 1],
+                        ease: "linear"
+                    }}
+                    onAnimationComplete={() => onComplete(id)}
+                    style={{ left: 'calc(50% - 40px)' }}
+                >
+                    {/* Make it an isometric 3D box physically */}
+                    {/* Top */}
+                    <div className="absolute inset-0 bg-sky-400 border border-sky-300 flex items-center justify-center font-bold text-sky-900 drop-shadow-[0_0_15px_rgba(56,189,248,0.8)]">PKG</div>
+                    {/* Front edge */}
+                    <div className="absolute inset-0 bg-sky-600 border border-sky-500 origin-bottom" style={{ transform: 'rotateX(-90deg) translateZ(80px)', height: '20px', top: 'calc(100% - 20px)' }}></div>
+                    {/* Right edge */}
+                    <div className="absolute inset-0 bg-sky-500 border border-sky-400 origin-right" style={{ transform: 'rotateY(90deg) translateZ(80px)', width: '20px', left: 'calc(100% - 20px)' }}></div>
+                </motion.div>
+            );
+        };
+
+        const App = () => {
+            const [blocks, setBlocks] = useState([]);
+            const [progress, setProgress] = useState(0);
+            const [isUploading, setIsUploading] = useState(false);
+
+            useEffect(() => {
+                if (!isUploading) return;
+                
+                const intervalId = setInterval(() => {
+                    setBlocks(prev => [...prev, Date.now() + Math.random()]);
+                    setProgress(p => Math.min(p + 5, 100)); // fake progress
+                }, 400);
+
+                if (progress >= 100) {
+                    setIsUploading(false);
+                    clearInterval(intervalId);
+                }
+
+                return () => clearInterval(intervalId);
+            }, [isUploading, progress]);
+
+            const removeBlock = (id) => {
+                setBlocks(prev => prev.filter(b => b !== id));
+            };
+
+            const startUpload = () => {
+                setProgress(0);
+                setIsUploading(true);
+            };
+
+            return (
+                <div className="w-full h-screen relative preserve-3d flex items-center justify-center">
+                    
+                    <div className="absolute top-12 left-12 z-20">
+                        <h1 className="text-4xl font-black text-white mb-4 tracking-tighter">Physical Pipeline.</h1>
+                        <p className="text-slate-400 max-w-sm font-medium leading-relaxed mb-8">CSS Isometric Planes coupled with linear keyframes creates a fully faked 3D rendering of a conveyor belt, processing DOM objects.</p>
+                        <button 
+                            onClick={startUpload}
+                            disabled={isUploading || progress === 100}
+                            className="bg-sky-500 text-white px-8 py-4 font-bold rounded-full drop-shadow-[0_0_20px_rgba(56,189,248,0.4)] disabled:opacity-50 transition-transform active:scale-95"
+                        >
+                            {progress === 100 ? "Processing Complete" : isUploading ? `Uploading ${progress}%` : "Initiate Upload Sequence"}
+                        </button>
+                    </div>
+
+                    {/* The Conveyor Belt Container */}
+                    <motion.div 
+                        className="preserve-3d w-[300px] h-[600px] absolute"
+                        style={{ rotateX: 60, rotateZ: -45, top: '20%' }}
+                    >
+                        {/* The Belt Texture */}
+                        <div 
+                            className="absolute inset-0 conveyor-belt rounded-b-3xl border-x-[12px] border-b-[12px] border-slate-700 shadow-2xl"
+                            style={{ 
+                                animation: isUploading ? 'moveBelt 1s linear infinite' : 'none' 
+                            }}
+                        />
+
+                        {/* Start Portal Glow */}
+                        <div className="absolute top-[-20px] left-0 right-0 h-10 bg-[radial-gradient(ellipse_at_center,rgba(56,189,248,0.8)_0%,transparent_100%)] blur-[20px] z-10"></div>
+
+                        {/* Active blocks dropping onto the belt */}
+                        <div className="absolute inset-0 preserve-3d">
+                            <AnimatePresence>
+                                {blocks.map(block => (
+                                    <Block key={block} id={block} onComplete={removeBlock} />
+                                ))}
+                            </AnimatePresence>
+                        </div>
+
+                    </motion.div>
+                </div>
+            );
+        };
+
+        createRoot(document.getElementById('root')).render(<App />);
+    </script>
+</body>
+</html>

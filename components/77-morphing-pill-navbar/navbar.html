@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scroll Morphing Navbar</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap');
+        body { margin:0; background:#fafaf9; font-family:'Inter',sans-serif; }
+        html { scroll-behavior:smooth; }
+        .hero-bg { background: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(99,102,241,0.12) 0%, transparent 70%); }
+    </style>
+    <script type="importmap">{"imports":{"react":"https://esm.sh/react@18.2.0","react-dom/client":"https://esm.sh/react-dom@18.2.0/client","framer-motion":"https://esm.sh/framer-motion@10.16.4?external=react,react-dom"}}</script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel" data-type="module">
+import React, { useEffect, useState, useRef } from 'react';
+import { createRoot } from 'react-dom/client';
+import { motion, AnimatePresence, useScroll, useTransform, useSpring } from 'framer-motion';
+
+const NAV_LINKS = ['Product', 'Pricing', 'Blog', 'Docs'];
+
+const Navbar = () => {
+    const [scrolled, setScrolled] = useState(false);
+    const [scrollPct, setScrollPct] = useState(0);
+    
+    useEffect(() => {
+        const handler = () => {
+            const s = window.scrollY;
+            const max = 200;
+            setScrollPct(Math.min(s / max, 1));
+            setScrolled(s > 80);
+        };
+        window.addEventListener('scroll', handler, { passive: true });
+        return () => window.removeEventListener('scroll', handler);
+    }, []);
+
+    const p = scrollPct; // 0 = top, 1 = scrolled
+
+    return (
+        <div className="fixed inset-x-0 top-0 z-50 flex justify-center pointer-events-none" style={{padding: `${p*16}px ${p*24}px 0`}}>
+            <motion.nav
+                className="pointer-events-auto w-full overflow-hidden"
+                style={{
+                    borderRadius: `${p*40}px`,
+                    background: p < 0.1
+                        ? 'rgba(255,255,255,0)'
+                        : `rgba(255,255,255,${0.85*p})`,
+                    backdropFilter: `blur(${p*20}px)`,
+                    boxShadow: p > 0.3
+                        ? `0 ${p*20}px ${p*40}px rgba(0,0,0,${p*0.08}), 0 0 0 1px rgba(0,0,0,${p*0.05})`
+                        : 'none',
+                }}
+                transition={{ duration: 0 }} // We use inline style for direct scroll sync
+            >
+                <div className="flex items-center justify-between px-6 md:px-10" style={{height: `${72 - p*16}px`}}>
+                    
+                    {/* Logo */}
+                    <motion.div className="flex items-center gap-2.5 flex-shrink-0">
+                        <motion.div 
+                            className="rounded-lg bg-indigo-600 flex items-center justify-center"
+                            style={{ width: `${28 - p*6}px`, height: `${28 - p*6}px` }}
+                        >
+                            <svg className="text-white" style={{width:`${14-p*3}px`,height:`${14-p*3}px`}} fill="currentColor" viewBox="0 0 20 20">
+                                <path d="M10 2L2 7l8 5 8-5-8-5zM2 13l8 5 8-5M2 9l8 5 8-5"/>
+                            </svg>
+                        </motion.div>
+                        <span className="font-black tracking-tighter text-slate-900" style={{fontSize:`${20-p*2}px`}}>
+                            Verge
+                        </span>
+                    </motion.div>
+
+                    {/* Center Links — fade out + collapse */}
+                    <div className="hidden md:flex items-center gap-1" style={{opacity: 1-p*2, pointerEvents: p>0.5?'none':'auto'}}>
+                        {NAV_LINKS.map(link => (
+                            <a key={link} href="#" className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 rounded-lg hover:bg-slate-100 transition-colors">
+                                {link}
+                            </a>
+                        ))}
+                    </div>
+
+                    {/* Right actions */}
+                    <div className="flex items-center gap-2">
+                        {/* Icons always visible */}
+                        <AnimatePresence>
+                            {scrolled && (
+                                <motion.div className="flex items-center gap-1" initial={{opacity:0,x:10}} animate={{opacity:1,x:0}} exit={{opacity:0,x:10}}>
+                                    {NAV_LINKS.map((l,i) => (
+                                        <motion.a key={l} href="#"
+                                            className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition-colors text-xs font-bold"
+                                            initial={{opacity:0,y:-8,scale:0.8}} animate={{opacity:1,y:0,scale:1}}
+                                            transition={{delay:i*0.05, type:'spring', stiffness:400, damping:25}}
+                                        >{l[0]}</motion.a>
+                                    ))}
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
+
+                        {!scrolled && (
+                            <a href="#" className="text-sm font-semibold text-slate-600 hover:text-slate-900 px-3 py-2">Sign in</a>
+                        )}
+                        
+                        <motion.a href="#"
+                            className="bg-indigo-600 text-white font-semibold rounded-full hover:bg-indigo-700 transition-colors inline-flex items-center gap-1.5"
+                            style={{ fontSize:`${13-p*1}px`, paddingLeft:`${20-p*6}px`, paddingRight:`${20-p*6}px`, paddingTop:`${8-p*2}px`, paddingBottom:`${8-p*2}px` }}
+                        >
+                            <span>Get started</span>
+                            {!scrolled && <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 12h14M12 5l7 7-7 7"/></svg>}
+                        </motion.a>
+                    </div>
+                </div>
+            </motion.nav>
+
+            {/* Scroll Indicator for demo */}
+            <AnimatePresence>
+                {!scrolled && (
+                    <motion.div className="absolute top-24 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 text-slate-400 pointer-events-none"
+                        initial={{opacity:0,y:-10}} animate={{opacity:1,y:0}} exit={{opacity:0}} transition={{delay:1}}>
+                        <span className="text-xs font-semibold tracking-widest uppercase">Scroll down</span>
+                        <motion.div animate={{y:[0,6,0]}} transition={{repeat:Infinity,duration:1.2}}>
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"/></svg>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+        </div>
+    );
+};
+
+const Section = ({i}) => {
+    const colors = ['bg-indigo-50','bg-sky-50','bg-violet-50','bg-pink-50'];
+    const titles = ['Ship faster.','Scale globally.','Collaborate live.','Deploy anywhere.'];
+    return (
+        <motion.div className={`w-full rounded-3xl p-12 ${colors[i%4]} border border-white/80`}
+            initial={{opacity:0,y:40}} whileInView={{opacity:1,y:0}} viewport={{once:true,margin:'-80px'}}
+            transition={{duration:0.6, delay:0.1}}>
+            <h2 className="text-3xl font-black text-slate-800 tracking-tighter mb-4">{titles[i]}</h2>
+            <p className="text-slate-500 max-w-md font-medium leading-relaxed">
+                Spatial infrastructure built for the next decade. Zero config, infinite scale, human-first interfaces.
+            </p>
+        </motion.div>
+    );
+};
+
+const App = () => (
+    <div className="min-h-[350vh] hero-bg">
+        <Navbar/>
+        <div className="pt-36 pb-32 px-8 max-w-3xl mx-auto space-y-8">
+            <div className="text-center py-20">
+                <motion.h1 className="text-6xl md:text-8xl font-black tracking-tighter text-slate-900 leading-none mb-6"
+                    initial={{opacity:0,y:20}} animate={{opacity:1,y:0}} transition={{duration:0.8}}>
+                    Build what's<br/><span className="text-indigo-500">next.</span>
+                </motion.h1>
+                <motion.p className="text-xl text-slate-500 font-medium max-w-md mx-auto"
+                    initial={{opacity:0,y:20}} animate={{opacity:1,y:0}} transition={{duration:0.8,delay:0.2}}>
+                    Scroll to watch the navbar dramatically morph into a floating glass pill in real-time.
+                </motion.p>
+            </div>
+            {Array.from({length:6},(_,i)=><Section key={i} i={i}/>)}
+        </div>
+    </div>
+);
+createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>

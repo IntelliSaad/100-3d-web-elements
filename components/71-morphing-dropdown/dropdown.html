@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fluid Morphing Navbar</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { margin: 0; background: #f8fafc; min-height: 100vh; overflow-x: hidden; font-family: 'Inter', sans-serif; }
+        .preserve-3d { transform-style: preserve-3d; }
+    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script type="importmap">
+    {
+        "imports": {
+            "react": "https://esm.sh/react@18.2.0",
+            "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+            "framer-motion": "https://esm.sh/framer-motion@10.16.4?external=react,react-dom"
+        }
+    }
+    </script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel" data-type="module">
+        import React, { useState, useRef, useEffect } from 'react';
+        import { createRoot } from 'react-dom/client';
+        import { motion, AnimatePresence } from 'framer-motion';
+
+        // The navigation content payload
+        const NAV_ITEMS = [
+            {
+                id: 'products',
+                label: 'Products',
+                content: (
+                    <div className="w-[400px] grid grid-cols-2 gap-4 p-6">
+                        <div className="flex flex-col gap-2">
+                            <h3 className="text-sm font-bold text-slate-900 uppercase tracking-widest mb-2">Core</h3>
+                            <a href="#" className="flex flex-col hover:bg-slate-50 p-2 rounded-lg transition-colors">
+                                <span className="font-bold text-slate-800">Payments</span>
+                                <span className="text-sm text-slate-500">Global routing</span>
+                            </a>
+                            <a href="#" className="flex flex-col hover:bg-slate-50 p-2 rounded-lg transition-colors">
+                                <span className="font-bold text-slate-800">Checkout</span>
+                                <span className="text-sm text-slate-500">Pre-built forms</span>
+                            </a>
+                        </div>
+                        <div className="flex flex-col gap-2 bg-slate-50 rounded-xl p-4">
+                            <h3 className="text-sm font-bold text-indigo-600 uppercase tracking-widest mb-2">New Release</h3>
+                            <div className="w-full h-16 bg-white rounded-lg shadow-sm border border-slate-200 mb-2 flex items-center justify-center text-2xl">💳</div>
+                            <span className="font-bold text-slate-800">Physical Cards</span>
+                            <span className="text-sm text-slate-500">Issue custom cards</span>
+                        </div>
+                    </div>
+                )
+            },
+            {
+                id: 'developers',
+                label: 'Developers',
+                content: (
+                    <div className="w-[300px] flex flex-col gap-1 p-4">
+                        <a href="#" className="flex items-center gap-4 hover:bg-slate-50 p-3 rounded-lg transition-colors">
+                            <div className="w-10 h-10 bg-sky-100 rounded-lg flex items-center justify-center text-sky-600 text-lg">📚</div>
+                            <div>
+                                <span className="block font-bold text-slate-800">Documentation</span>
+                                <span className="block text-sm text-slate-500">Start integrating</span>
+                            </div>
+                        </a>
+                        <a href="#" className="flex items-center gap-4 hover:bg-slate-50 p-3 rounded-lg transition-colors">
+                            <div className="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center text-amber-600 text-lg">⚡</div>
+                            <div>
+                                <span className="block font-bold text-slate-800">API Reference</span>
+                                <span className="block text-sm text-slate-500">Endpoints & types</span>
+                            </div>
+                        </a>
+                    </div>
+                )
+            },
+            {
+                id: 'company',
+                label: 'Company',
+                content: (
+                    <div className="w-[200px] flex flex-col p-2">
+                        <a href="#" className="px-4 py-2 hover:bg-slate-50 rounded-lg text-slate-700 font-semibold transition-colors">About</a>
+                        <a href="#" className="px-4 py-2 hover:bg-slate-50 rounded-lg text-slate-700 font-semibold transition-colors">Customers</a>
+                        <a href="#" className="px-4 py-2 hover:bg-slate-50 rounded-lg text-slate-700 font-semibold transition-colors">Careers <span className="ml-2 bg-indigo-100 text-indigo-700 text-[10px] px-2 py-0.5 rounded-full uppercase tracking-widest">Hiring</span></a>
+                    </div>
+                )
+            }
+        ];
+
+        const App = () => {
+            const [activeTab, setActiveTab] = useState(null);
+            
+            // To animate the background size seamlessly, we use Framer Motion layoutId.
+            // But we need to know WHICH tab is hovered to render its content.
+            
+            return (
+                <div className="w-full h-screen preserve-3d pt-12 relative flex justify-center bg-[radial-gradient(ellipse_at_top,rgba(255,255,255,1),#f8fafc_100%)]">
+                    
+                    <div className="absolute top-[30vh] text-center max-w-lg mx-auto pointer-events-none px-4">
+                        <h1 className="text-5xl font-black text-slate-900 tracking-tighter mb-4">Fluid Morphing Navigation</h1>
+                        <p className="text-slate-500 text-lg font-medium">Hover over the navbar links above. Instead of fading distinct menus in and out, a physical high-performance spatial container stretches, resizes, and morphs instantly around the incoming content.</p>
+                    </div>
+
+                    <nav 
+                        className="relative z-50 flex items-center gap-8 bg-white/60 backdrop-blur-xl border border-slate-200/50 px-8 py-4 rounded-full shadow-[0_10px_40px_rgba(0,0,0,0.05)] mx-auto h-fit"
+                        onMouseLeave={() => setActiveTab(null)}
+                    >
+                        <div className="flex items-center gap-2 mr-12 cursor-pointer">
+                            <div className="w-6 h-6 bg-indigo-600 rounded-md shadow-lg rotate-12"></div>
+                            <span className="font-black text-xl tracking-tighter">SaaS.</span>
+                        </div>
+
+                        {NAV_ITEMS.map((item) => (
+                            <div 
+                                key={item.id}
+                                className="relative"
+                                onMouseEnter={() => setActiveTab(item.id)}
+                            >
+                                <button className="text-slate-600 font-semibold hover:text-slate-900 transition-colors px-4 py-2">
+                                    {item.label}
+                                </button>
+                                
+                                {/* The Dropdown Container Engine */}
+                                {activeTab === item.id && (
+                                    <div className="absolute top-full left-1/2 -translate-x-1/2 pt-6 pointer-events-none">
+                                        <motion.div 
+                                            layoutId="dropdown-bg"
+                                            className="bg-white/90 backdrop-blur-2xl rounded-2xl shadow-[0_20px_40px_rgba(0,0,0,0.1),_0_0_0_1px_rgba(0,0,0,0.05)] overflow-hidden pointer-events-auto filter drop-shadow-xl"
+                                            initial={{ opacity: 0, rotateX: -15, y: -10 }}
+                                            animate={{ opacity: 1, rotateX: 0, y: 0 }}
+                                            exit={{ opacity: 0, rotateX: -15, y: -10 }}
+                                            transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                                        >
+                                            {/* We use an AnimatePresence inside the morphing background so content fades politely */}
+                                            <AnimatePresence mode="popLayout">
+                                                <motion.div
+                                                    key={item.id}
+                                                    initial={{ opacity: 0, x: -20 }}
+                                                    animate={{ opacity: 1, x: 0 }}
+                                                    exit={{ opacity: 0, x: 20 }}
+                                                    transition={{ duration: 0.15 }}
+                                                >
+                                                    {item.content}
+                                                </motion.div>
+                                            </AnimatePresence>
+                                        </motion.div>
+                                        
+                                        {/* Physical connection arrow bridging nav to dropdown */}
+                                        <motion.div 
+                                            layoutId="dropdown-arrow"
+                                            className="absolute top-4 left-1/2 w-4 h-4 bg-white border-l border-t border-slate-200/50 -translate-x-1/2 rotate-45 pointer-events-none z-[-1]"
+                                            initial={{ opacity: 0 }}
+                                            animate={{ opacity: 1 }}
+                                            exit={{ opacity: 0 }}
+                                            transition={{ duration: 0.2 }}
+                                        ></motion.div>
+                                    </div>
+                                )}
+                            </div>
+                        ))}
+
+                        <div className="ml-12 flex gap-4">
+                            <button className="text-slate-500 font-semibold hover:text-slate-900 px-4">Login</button>
+                            <button className="bg-slate-900 hover:bg-slate-800 text-white px-6 py-2 rounded-full font-bold shadow-lg transition-colors active:scale-95">Start Free</button>
+                        </div>
+                    </nav>
+
+                </div>
+            );
+        };
+
+        createRoot(document.getElementById('root')).render(<App />);
+    </script>
+</body>
+</html>

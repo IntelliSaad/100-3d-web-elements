@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Spy Navigation</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body, html { margin: 0; background: #fafaf9; font-family: 'Inter', sans-serif; overflow-x: hidden; }
+        .section-block { min-height: 120vh; display: flex; flex-direction: column; justify-content: center; padding: 40px; }
+    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800;900&display=swap" rel="stylesheet">
+    <script type="importmap">
+    {
+        "imports": {
+            "react": "https://esm.sh/react@18.2.0",
+            "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+            "framer-motion": "https://esm.sh/framer-motion@10.16.4?external=react,react-dom"
+        }
+    }
+    </script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel" data-type="module">
+        import React, { useState, useEffect, useRef } from 'react';
+        import { createRoot } from 'react-dom/client';
+        import { motion } from 'framer-motion';
+
+        const SECTIONS = [
+            { id: 'intro',     title: 'I. System Initialization',  color: 'bg-indigo-600' },
+            { id: 'auth',      title: 'II. Secure Authentication', color: 'bg-rose-500' },
+            { id: 'database',  title: 'III. Vector Database',      color: 'bg-emerald-500' },
+            { id: 'rendering', title: 'IV. WebGL Rendering Engine',color: 'bg-sky-500' },
+            { id: 'metrics',   title: 'V. Production Telemetry',   color: 'bg-fuchsia-600' },
+        ];
+
+        const App = () => {
+            const [activeSection, setActiveSection] = useState(SECTIONS[0].id);
+            const sectionRefs = useRef({});
+
+            useEffect(() => {
+                // Highly performant Native Intersection Observer to track which section is currently spanning the center of the viewport
+                const observer = new IntersectionObserver(
+                    (entries) => {
+                        entries.forEach((entry) => {
+                            // Using an elevated threshold prevents flickering between sections
+                            if (entry.isIntersecting) {
+                                setActiveSection(entry.target.id);
+                            }
+                        });
+                    },
+                    { rootMargin: "-30% 0px -50% 0px" } // Triggers exactly when passing through the dead center of screen
+                );
+
+                Object.values(sectionRefs.current).forEach((ref) => {
+                    if (ref) observer.observe(ref);
+                });
+
+                return () => observer.disconnect();
+            }, []);
+
+            return (
+                <div className="w-full flex relative">
+                    
+                    {/* The Fixed Sidebar Navigator (The "Spy Nav") */}
+                    <div className="hidden lg:flex w-96 flex-col fixed top-0 left-0 h-screen py-32 px-12 border-r border-slate-200 bg-white shadow-xl z-50">
+                        <div className="mb-16">
+                            <div className="w-12 h-12 bg-slate-900 rounded-xl shadow mb-6"></div>
+                            <h2 className="text-xl font-black text-slate-900 tracking-tighter">Documentation</h2>
+                            <p className="text-slate-400 font-bold text-xs uppercase tracking-widest mt-1">v4.0.0 Stable</p>
+                        </div>
+                        
+                        <nav className="flex flex-col relative">
+                            {/* Visual structural line passing through all nodes */}
+                            <div className="absolute left-3 top-2 bottom-2 w-[2px] bg-slate-100 z-0"></div>
+
+                            {SECTIONS.map((sec) => (
+                                <a 
+                                    key={sec.id}
+                                    href={`#${sec.id}`}
+                                    className={`relative z-10 flex items-center py-4 px-2 tracking-tight transition-colors duration-300 font-black text-sm group ${activeSection === sec.id ? 'text-slate-900' : 'text-slate-400 hover:text-slate-600'}`}
+                                >
+                                    {/* The active node glowing indicator (Morphs physically utilizing layoutId) */}
+                                    {activeSection === sec.id ? (
+                                        <motion.div 
+                                            layoutId="nav-indicator"
+                                            className={`absolute left-0 w-6 h-6 rounded-full ${sec.color} shadow-[0_0_15px_rgba(0,0,0,0.3)] border-2 border-white`}
+                                            transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                                        />
+                                    ) : (
+                                        <div className="absolute left-[9px] w-2 h-2 rounded-full bg-slate-300 group-hover:bg-slate-400 transition-colors"></div>
+                                    )}
+                                    
+                                    <span className="ml-10">{sec.title}</span>
+                                </a>
+                            ))}
+                        </nav>
+                    </div>
+
+                    {/* The Scrolling Content Container */}
+                    <div className="w-full lg:ml-96 px-8 py-32 lg:px-32 max-w-5xl">
+
+                        <div className="text-center lg:text-left mb-40">
+                            <h1 className="text-6xl md:text-[80px] font-black tracking-tighter text-slate-800 leading-[0.9] mb-8">
+                                Interactive<br/>Spy Navbar.
+                            </h1>
+                            <p className="text-xl font-medium text-slate-500 max-w-lg">
+                                Scrapped the static CSS stickiness. Here, native browser Intersection Observers silently watch the Z-plane. As you cross the invisible central boundaries, Framer Motion yanks the physical indicator down the list using mathematical <code className="bg-slate-100 px-1 text-slate-800 font-bold rounded">layoutId</code> coordinates.
+                            </p>
+                            <div className="mt-16 text-slate-300 font-bold animate-pulse text-2xl">↓</div>
+                        </div>
+
+                        {/* Rendering the long-form generic sections to scroll past */}
+                        {SECTIONS.map((sec) => (
+                            <section 
+                                key={sec.id} 
+                                id={sec.id}
+                                ref={(el) => (sectionRefs.current[sec.id] = el)}
+                                className="section-block relative"
+                            >
+                                <motion.div 
+                                    className={`w-20 h-20 rounded-[24px] shadow-2xl ${sec.color} flex items-center justify-center font-black text-white text-3xl mb-12`}
+                                    initial={{ opacity: 0, scale: 0.8, rotate: -10 }}
+                                    whileInView={{ opacity: 1, scale: 1, rotate: 0 }}
+                                    viewport={{ once: false, amount: 0.6 }}
+                                >
+                                    {sec.id.charAt(0).toUpperCase()}
+                                </motion.div>
+                                <h2 className="text-5xl md:text-6xl font-black text-slate-800 tracking-tighter mb-8">{sec.title}</h2>
+                                <p className="text-lg text-slate-500 leading-relaxed max-w-2xl mb-12 font-medium">As you scroll smoothly through this block, the observer tracks the pixel penetration. Notice the visual physical indicator on the left completely detached from this DOM section, visually synchronizing your location effortlessly.</p>
+                                
+                                <div className="space-y-6 w-full max-w-2xl">
+                                    <div className="h-6 w-3/4 bg-slate-200 rounded-lg"></div>
+                                    <div className="h-6 w-5/6 bg-slate-100 rounded-lg"></div>
+                                    <div className="h-6 w-full bg-slate-100 rounded-lg"></div>
+                                    <div className="h-6 w-2/3 bg-slate-100 rounded-lg"></div>
+                                </div>
+                            </section>
+                        ))}
+                        
+                        <div className="section-block text-center flex-col items-center">
+                            <h2 className="text-4xl font-black tracking-widest uppercase text-slate-300">Terminal Bound Reached</h2>
+                        </div>
+                    </div>
+
+                </div>
+            );
+        };
+
+        createRoot(document.getElementById('root')).render(<App />);
+    </script>
+</body>
+</html>

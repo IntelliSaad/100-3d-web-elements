@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Z-Depth Spatial Mega Menu</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { margin: 0; background: #fafafa; min-height: 100vh; overflow-x: hidden; font-family: 'Inter', sans-serif; }
+        .preserve-3d { transform-style: preserve-3d; }
+        .perspective-container { perspective: 1200px; }
+        
+        .mega-menu-panel {
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(0,0,0,0.05);
+            box-shadow: 0 50px 100px -20px rgba(0,0,0,0.15), 0 30px 60px -30px rgba(0,0,0,0.1);
+        }
+    </style>
+    <script type="importmap">
+    {
+        "imports": {
+            "react": "https://esm.sh/react@18.2.0",
+            "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+            "framer-motion": "https://esm.sh/framer-motion@10.16.4?external=react,react-dom"
+        }
+    }
+    </script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body>
+    <div id="root"></div>
+    <script type="text/babel" data-type="module">
+        import React, { useState } from 'react';
+        import { createRoot } from 'react-dom/client';
+        import { motion, AnimatePresence } from 'framer-motion';
+
+        const App = () => {
+            const [isMenuOpen, setIsMenuOpen] = useState(false);
+            const [hoveredCol, setHoveredCol] = useState(null);
+
+            const columns = [
+                {
+                    title: "Categories",
+                    links: ["Men's Collection", "Women's Collection", "Accessories", "Footwear", "New Arrivals"]
+                },
+                {
+                    title: "Featured Product",
+                    isCard: true,
+                    image: "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400&q=80",
+                    productName: "Aesop Skin Care",
+                    price: "$45.00"
+                },
+                {
+                    title: "Help & Support",
+                    links: ["Shipping Info", "Returns & Exchanges", "Contact Us", "FAQ", "Store Locator"]
+                }
+            ];
+
+            return (
+                <div className="w-full min-h-screen bg-slate-50 relative perspective-container">
+                    
+                    {/* Header */}
+                    <header className="fixed top-0 left-0 w-full p-6 flex justify-between items-center z-50 bg-white/50 backdrop-blur-md border-b border-slate-200 shadow-sm">
+                        <div className="font-black text-2xl tracking-tighter text-slate-900">SPATIAL.</div>
+                        <button 
+                            onMouseEnter={() => setIsMenuOpen(true)}
+                            className="bg-slate-900 text-white px-6 py-2.5 rounded-full font-semibold hover:bg-slate-800 transition-colors shadow-lg"
+                        >
+                            Products Menu
+                        </button>
+                    </header>
+
+                    {/* Mega Menu Overlay */}
+                    <AnimatePresence>
+                        {isMenuOpen && (
+                            <motion.div 
+                                className="fixed top-0 left-0 w-full h-screen z-40 preserve-3d pointer-events-none"
+                                onMouseLeave={() => setIsMenuOpen(false)}
+                            >
+                                {/* Invisible hit area to trigger mouse leave when hovering off the menu */}
+                                <div className="absolute inset-0 pointer-events-auto" onMouseEnter={() => setIsMenuOpen(false)}></div>
+                                
+                                <motion.div 
+                                    className="absolute top-[80px] left-1/2 -translate-x-1/2 w-full max-w-5xl p-8 mega-menu-panel rounded-3xl pointer-events-auto flex gap-8 preserve-3d"
+                                    initial={{ opacity: 0, y: -20, rotateX: -10 }}
+                                    animate={{ opacity: 1, y: 0, rotateX: 0 }}
+                                    exit={{ opacity: 0, y: -20, rotateX: 10 }}
+                                    transition={{ type: "spring", stiffness: 300, damping: 25 }}
+                                    style={{ transformOrigin: "top center" }}
+                                    onMouseLeave={() => setHoveredCol(null)}
+                                >
+                                    {columns.map((col, idx) => {
+                                        const isHovered = hoveredCol === idx;
+                                        const isOtherHovered = hoveredCol !== null && hoveredCol !== idx;
+                                        
+                                        return (
+                                            <motion.div
+                                                key={idx}
+                                                className={`flex-1 p-6 rounded-2xl transition-colors duration-300 preserve-3d ${isHovered ? 'bg-slate-50 shadow-sm border border-slate-100' : ''}`}
+                                                onMouseEnter={() => setHoveredCol(idx)}
+                                                animate={{ 
+                                                    z: isHovered ? 40 : (isOtherHovered ? -30 : 0),
+                                                    scale: isHovered ? 1.02 : (isOtherHovered ? 0.95 : 1),
+                                                    opacity: isOtherHovered ? 0.5 : 1
+                                                }}
+                                                transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                                            >
+                                                <h3 className="font-bold text-slate-900 mb-6 text-lg">{col.title}</h3>
+                                                
+                                                {col.isCard ? (
+                                                    <div className="w-full bg-white rounded-xl shadow-md overflow-hidden border border-slate-100 group cursor-pointer">
+                                                        <div className="h-32 bg-slate-200 overflow-hidden relative">
+                                                            <img src={col.image} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                                                        </div>
+                                                        <div className="p-4">
+                                                            <p className="font-semibold text-slate-900">{col.productName}</p>
+                                                            <p className="text-slate-500 text-sm">{col.price}</p>
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    <ul className="space-y-4">
+                                                        {col.links.map((link, i) => (
+                                                            <li key={i}>
+                                                                <a href="#" className="text-slate-600 hover:text-indigo-600 font-medium transition-colors block transform hover:translate-x-1 duration-200">
+                                                                    {link}
+                                                                </a>
+                                                            </li>
+                                                        ))}
+                                                    </ul>
+                                                )}
+                                            </motion.div>
+                                        );
+                                    })}
+                                </motion.div>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+
+                    {/* Main Content (recedes when menu opens) */}
+                    <motion.main 
+                        className="pt-32 px-12 max-w-7xl mx-auto"
+                        animate={{ 
+                            scale: isMenuOpen ? 0.95 : 1,
+                            filter: isMenuOpen ? 'blur(4px)' : 'blur(0px)',
+                            opacity: isMenuOpen ? 0.6 : 1,
+                            y: isMenuOpen ? 20 : 0
+                        }}
+                        transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                    >
+                        <h1 className="text-7xl font-black text-slate-900 mb-8 max-w-3xl leading-tight">Spatial navigation that feels deeply physical.</h1>
+                        <p className="text-xl text-slate-600 max-w-2xl mb-12 leading-relaxed">Hover over the "Products Menu" button above. As the Mega Menu opens, this content will physically recede into the background. Move your mouse across the menu columns to see Z-axis spatial sorting in CSS.</p>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                            {[1,2,3].map(i => (
+                                <div key={i} className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 h-64">
+                                    <div className="w-12 h-12 bg-indigo-100 rounded-full mb-4"></div>
+                                    <div className="h-4 bg-slate-100 rounded w-1/2 mb-2"></div>
+                                    <div className="h-4 bg-slate-50 rounded w-3/4"></div>
+                                </div>
+                            ))}
+                        </div>
+                    </motion.main>
+                </div>
+            );
+        };
+
+        createRoot(document.getElementById('root')).render(<App />);
+    </script>
+</body>
+</html>

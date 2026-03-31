@@ -3,22 +3,30 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Spatial 3D Dropzone</title>
+    <title>Immersive Spatial 3D Dropzone</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        body { margin: 0; background: #0a0a0c; min-height: 100vh; overflow: hidden; font-family: 'Inter', sans-serif; }
+        body { margin: 0; background: #030712; min-height: 100vh; overflow: hidden; font-family: 'Inter', sans-serif; }
         #root { width: 100%; height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; }
         
         .preserve-3d {
             transform-style: preserve-3d;
+            perspective: 1500px;
         }
 
-        /* Subtle ambient desk background */
-        .bg-gradient-desk {
-            background: radial-gradient(circle at center, rgba(255,255,255,0.03) 0%, transparent 70%);
+        .bg-grid-pattern {
+            background-size: 40px 40px;
+            background-image: 
+                linear-gradient(to right, rgba(255,255,255,0.02) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(255,255,255,0.02) 1px, transparent 1px);
+        }
+
+        .dropzone-container {
+            background: linear-gradient(135deg, rgba(30,41,59,0.5) 0%, rgba(15,23,42,0.8) 100%);
+            backdrop-filter: blur(24px);
         }
     </style>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap" rel="stylesheet">
     <script type="importmap">
     {
         "imports": {
@@ -30,20 +38,38 @@
     </script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 </head>
-<body class="bg-gradient-desk">
+<body class="bg-grid-pattern">
     <div id="root"></div>
 
     <script type="text/babel" data-type="module">
-        import React, { useState, useRef } from 'react';
+        import React, { useState, useRef, useEffect } from 'react';
         import { createRoot } from 'react-dom/client';
-        import { motion } from 'framer-motion';
+        import { motion, useMotionValue, useSpring, useTransform, AnimatePresence } from 'framer-motion';
 
         const App = () => {
             const [isDragging, setIsDragging] = useState(false);
+            const [isHovered, setIsHovered] = useState(false);
             const counter = useRef(0);
+            const fileInputRef = useRef(null);
+            const containerRef = useRef(null);
 
-            // Prevent default browser behavior globally to avoid file opening
-            React.useEffect(() => {
+            // Mouse tracking values for 3D tilt
+            const mouseX = useMotionValue(0.5);
+            const mouseY = useMotionValue(0.5);
+
+            // Smooth the mouse values
+            const smoothMouseX = useSpring(mouseX, { damping: 30, stiffness: 200 });
+            const smoothMouseY = useSpring(mouseY, { damping: 30, stiffness: 200 });
+
+            // Map smoothed mouse values to rotation degrees
+            const rotateX = useTransform(smoothMouseY, [0, 1], [15, -15]);
+            const rotateY = useTransform(smoothMouseX, [0, 1], [-15, 15]);
+
+            // Spotlight effect mapping directly
+            const spotlightX = useTransform(smoothMouseX, [0, 1], ["0%", "100%"]);
+            const spotlightY = useTransform(smoothMouseY, [0, 1], ["0%", "100%"]);
+
+            useEffect(() => {
                 const preventDefault = (e) => e.preventDefault();
                 window.addEventListener('dragover', preventDefault);
                 window.addEventListener('drop', preventDefault);
@@ -53,7 +79,15 @@
                 };
             }, []);
 
-            // Drag event handlers
+            const updateMousePosition = (clientX, clientY) => {
+                if (!containerRef.current) return;
+                const rect = containerRef.current.getBoundingClientRect();
+                const x = (clientX - rect.left) / rect.width;
+                const y = (clientY - rect.top) / rect.height;
+                mouseX.set(x);
+                mouseY.set(y);
+            };
+
             const handleDragEnter = (e) => {
                 e.preventDefault();
                 e.stopPropagation();
@@ -65,14 +99,20 @@
                 e.preventDefault();
                 e.stopPropagation();
                 counter.current -= 1;
-                if (counter.current === 0) {
+                if (counter.current <= 0) {
                     setIsDragging(false);
+                    counter.current = 0;
                 }
             };
 
             const handleDragOver = (e) => {
                 e.preventDefault();
                 e.stopPropagation();
+                updateMousePosition(e.clientX, e.clientY);
+            };
+
+            const handleMouseMove = (e) => {
+                updateMousePosition(e.clientX, e.clientY);
             };
 
             const handleDrop = (e) => {
@@ -80,91 +120,212 @@
                 e.stopPropagation();
                 counter.current = 0;
                 setIsDragging(false);
+                setIsHovered(false);
+                mouseX.set(0.5);
+                mouseY.set(0.5);
                 
                 const files = e.dataTransfer.files;
                 if(files.length > 0) {
-                    alert(`Successfully caught ${files.length} file(s) from the real world!`);
+                    triggerSuccess(files.length);
                 }
             };
 
+            const handleFileSelect = (e) => {
+                const files = e.target.files;
+                if(files.length > 0) {
+                    triggerSuccess(files.length);
+                }
+            };
+
+            const triggerSuccess = (count) => {
+                alert(`Successfully processing ${count} file(s) in the spatial engine!`);
+            };
+
+            const handleDropzoneClick = () => {
+                fileInputRef.current?.click();
+            };
+
+            const isActive = isDragging || isHovered;
+
             return (
-                <div style={{ perspective: 2000 }} className="w-full h-full flex flex-col items-center justify-center p-8 preserve-3d">
-                    <h1 className="text-4xl font-extrabold mb-12 text-transparent bg-clip-text bg-gradient-to-r from-slate-200 to-slate-500 tracking-tight drop-shadow-xl z-20">Asset Repository</h1>
+                <div className="w-full h-full flex flex-col items-center justify-center p-8 preserve-3d relative">
+                    {/* Ambient glow from top */}
+                    <div className="absolute top-[-20%] left-1/2 -translate-x-1/2 w-[800px] h-[500px] bg-sky-500/10 rounded-full blur-[120px] pointer-events-none"></div>
+
+                    <h1 className="text-5xl font-black mb-16 text-transparent bg-clip-text bg-gradient-to-r from-slate-100 to-slate-400 tracking-tighter drop-shadow-2xl z-20">Quantum Dropzone</h1>
                     
-                    {/* The Spatial Dropzone Container */}
+                    <input 
+                        type="file" 
+                        ref={fileInputRef} 
+                        onChange={handleFileSelect} 
+                        className="hidden" 
+                        multiple 
+                    />
+
                     <motion.div
+                        ref={containerRef}
+                        onClick={handleDropzoneClick}
                         onDragEnter={handleDragEnter}
                         onDragLeave={handleDragLeave}
                         onDragOver={handleDragOver}
                         onDrop={handleDrop}
-                        initial={false}
-                        animate={{
+                        onMouseEnter={() => setIsHovered(true)}
+                        onMouseLeave={() => { setIsHovered(false); mouseX.set(0.5); mouseY.set(0.5); }}
+                        onMouseMove={handleMouseMove}
+                        className="relative w-full max-w-3xl h-[450px] rounded-[40px] flex items-center justify-center preserve-3d cursor-pointer dropzone-container border border-slate-700/50"
+                        style={{
+                            rotateX,
+                            rotateY,
+                        }}
+                        initial={{ scale: 0.9, opacity: 0 }}
+                        animate={{ 
                             scale: isDragging ? 0.95 : 1,
-                            backgroundColor: isDragging ? "rgba(15, 23, 42, 0.4)" : "rgba(255, 255, 255, 0.02)",
+                            opacity: 1,
                             boxShadow: isDragging 
-                                ? 'inset 0 30px 60px rgba(0,0,0,0.9), inset 0 0 40px rgba(0,0,0,0.6), 0 0 0 transparent'
-                                : 'inset 0 0 0 transparent, 0 20px 50px -10px rgba(0,0,0,0.5)'
+                                ? "0 0 100px -20px rgba(56, 189, 248, 0.5), inset 0 0 60px rgba(0,0,0,0.8)" 
+                                : isHovered
+                                    ? "0 40px 80px -20px rgba(0,0,0,0.8), inset 0 0 20px rgba(255,255,255,0.02)"
+                                    : "0 20px 40px -10px rgba(0,0,0,0.5), inset 0 0 20px rgba(255,255,255,0.02)",
+                            borderColor: isDragging ? "rgba(56, 189, 248, 0.5)" : "rgba(51, 65, 85, 0.5)"
                         }}
-                        transition={{ 
-                            type: "spring", 
-                            stiffness: 400, 
-                            damping: 30,
-                            mass: 0.8
-                        }}
-                        className="relative w-full max-w-2xl h-[400px] rounded-[32px] flex items-center justify-center preserve-3d border border-white/5 cursor-pointer backdrop-blur-xl"
+                        transition={{ type: "spring", stiffness: 300, damping: 30 }}
                     >
-                        {/* Interactive Neon Edge */}
+                        {/* Dynamic Interactive Spotlight using functional template literal on the style object */}
                         <motion.div 
-                            className="absolute inset-0 rounded-[32px] pointer-events-none"
+                            className="absolute inset-0 rounded-[40px] pointer-events-none opacity-40 mix-blend-overlay"
+                            style={{
+                                background: useTransform(
+                                    [spotlightX, spotlightY],
+                                    ([x, y]) => `radial-gradient(circle 400px at ${x} ${y}, rgba(255,255,255,1), transparent)`
+                                )
+                            }}
+                        />
+
+                        {/* Animated Neon Border */}
+                        <motion.div 
+                            className="absolute inset-0 rounded-[40px] pointer-events-none"
                             animate={{
                                 boxShadow: isDragging 
-                                    ? "inset 0 0 0 2px rgba(56, 189, 248, 0.5), 0 0 40px rgba(56, 189, 248, 0.2)" 
-                                    : "inset 0 0 0 1px rgba(255, 255, 255, 0.05), 0 0 0 transparent"
+                                    ? "inset 0 0 0 4px rgba(56, 189, 248, 0.8), 0 0 100px rgba(56, 189, 248, 0.4)" 
+                                    : isHovered
+                                        ? "inset 0 0 0 2px rgba(255, 255, 255, 0.3)"
+                                        : "inset 0 0 0 1px rgba(255, 255, 255, 0.05)"
                             }}
                             transition={{ duration: 0.3 }}
                         />
 
+                        {/* Concentric Pulsing Rings (Only visible when dragging) */}
+                        <AnimatePresence>
+                            {isDragging && (
+                                <>
+                                    {[1, 2, 3].map((ring) => (
+                                        <motion.div
+                                            key={ring}
+                                            className="absolute inset-0 rounded-[40px] border-2 border-sky-400 pointer-events-none"
+                                            initial={{ scale: 0.9, opacity: 0 }}
+                                            animate={{ 
+                                                scale: [0.9, 1.3, 1.8], 
+                                                opacity: [0, 0.5, 0] 
+                                            }}
+                                            transition={{ 
+                                                duration: 1.5, 
+                                                repeat: Infinity, 
+                                                delay: ring * 0.5,
+                                                ease: "easeOut"
+                                            }}
+                                            style={{ zIndex: -10 }} 
+                                        />
+                                    ))}
+                                </>
+                            )}
+                        </AnimatePresence>
+
                         {/* Floating Center Content */}
                         <motion.div 
-                            className="flex flex-col items-center preserve-3d pointer-events-none"
+                            className="flex flex-col items-center preserve-3d pointer-events-none z-20"
                             animate={{
-                                z: isDragging ? 60 : 0, // Icon pops out of the recessed hole to catch the file
-                                scale: isDragging ? 1.05 : 1
+                                z: isDragging ? 150 : isHovered ? 60 : 0, 
+                                scale: isDragging ? 1.2 : 1
                             }}
-                            transition={{ type: "spring", stiffness: 350, damping: 20 }}
+                            transition={{ type: "spring", stiffness: 400, damping: 25 }}
                         >
                             {/* Animated SVG Cloud/Document Icon */}
                             <motion.div 
+                                className="mb-8 relative"
                                 animate={{ 
-                                    color: isDragging ? "#38bdf8" : "#64748b",
-                                    y: isDragging ? [0, -8, 0] : 0 
+                                    color: isDragging ? "#38bdf8" : isHovered ? "#fff" : "#94a3b8",
+                                    y: isDragging ? -15 : 0 
                                 }}
-                                transition={{ y: { repeat: Infinity, duration: 2, ease: "easeInOut" } }}
-                                className="mb-6 drop-shadow-2xl"
                             >
-                                <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                                {/* Glow behind icon */}
+                                {isDragging && (
+                                    <motion.div 
+                                        className="absolute inset-0 bg-sky-400 blur-[40px] rounded-full"
+                                        initial={{ opacity: 0, scale: 0.5 }}
+                                        animate={{ opacity: 0.6, scale: 2 }}
+                                        transition={{ yoyo: Infinity, duration: 0.8 }}
+                                    ></motion.div>
+                                )}
+                                <svg width="120" height="120" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="relative z-10 drop-shadow-[0_15px_15px_rgba(0,0,0,0.6)]">
                                     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                                    <polyline points="17 8 12 3 7 8"></polyline>
-                                    <line x1="12" y1="3" x2="12" y2="15"></line>
+                                    <motion.polyline 
+                                        points="17 8 12 3 7 8" 
+                                        animate={{ y: isActive ? [0, -15, 0] : 0 }} 
+                                        transition={{ repeat: Infinity, duration: 1.2, ease: "easeInOut" }}
+                                    ></motion.polyline>
+                                    <motion.line 
+                                        x1="12" y1="3" x2="12" y2="15"
+                                        animate={{ y: isActive ? [0, -15, 0] : 0 }} 
+                                        transition={{ repeat: Infinity, duration: 1.2, ease: "easeInOut" }}
+                                    ></motion.line>
                                 </svg>
                             </motion.div>
                             
-                            <h3 className="text-2xl font-bold text-slate-200 tracking-wide drop-shadow-lg mb-2">
-                                {isDragging ? "Drop to upload" : "Drag files here"}
-                            </h3>
-                            <p className="text-slate-500 font-medium">
-                                SVG, PNG, JPG or GIF (max. 800x400px)
+                            <motion.h3 
+                                className="text-4xl font-black text-slate-100 tracking-wide drop-shadow-2xl mb-4"
+                                animate={{ scale: isDragging ? 1.1 : 1, color: isDragging ? "#38bdf8" : "#f1f5f9" }}
+                            >
+                                {isDragging ? "Release to Core!" : "Summon Assets"}
+                            </motion.h3>
+                            <p className="text-slate-400 font-medium text-xl tracking-wide">
+                                Drag files or click to inject
                             </p>
+                            
+                            {/* Little badge indicators */}
+                            <div className="flex gap-4 mt-10">
+                                {["HD", "4K", "RAW", "OBJ"].map((badge, i) => (
+                                    <motion.span 
+                                        key={badge}
+                                        className="px-4 py-1.5 rounded-full border border-slate-600 bg-slate-800/80 text-sm font-bold text-slate-300 backdrop-blur-md shadow-lg"
+                                        animate={{ 
+                                            y: isDragging ? -20 : 0, 
+                                            opacity: isDragging ? 0 : 1,
+                                            scale: isDragging ? 0.8 : 1
+                                        }}
+                                        transition={{ delay: i * 0.05 }}
+                                    >
+                                        {badge}
+                                    </motion.span>
+                                ))}
+                            </div>
                         </motion.div>
-                        
-                        {/* Floor grid inside the hole when recessed */}
+
+                        {/* Internal grid floor (activates when dragging) */}
                         <motion.div 
-                            className="absolute inset-x-0 bottom-0 h-1/2 rounded-b-[32px] pointer-events-none opacity-0"
+                            className="absolute inset-x-0 bottom-0 h-2/3 rounded-b-[40px] pointer-events-none"
                             style={{
-                                backgroundImage: 'linear-gradient(to top, rgba(56, 189, 248, 0.1) 0%, transparent 100%)',
+                                backgroundImage: `
+                                    linear-gradient(to top, rgba(56, 189, 248, 0.2) 0%, transparent 100%),
+                                    linear-gradient(to right, rgba(255,255,255,0.08) 1px, transparent 1px),
+                                    linear-gradient(to bottom, rgba(255,255,255,0.08) 1px, transparent 1px)
+                                `,
+                                backgroundSize: '100% 100%, 30px 30px, 30px 30px',
+                                transform: 'rotateX(70deg) translateZ(-80px)',
+                                transformOrigin: 'bottom'
                             }}
+                            initial={{ opacity: 0 }}
                             animate={{ opacity: isDragging ? 1 : 0 }}
-                            transition={{ duration: 0.3 }}
+                            transition={{ duration: 0.4 }}
                         />
                     </motion.div>
                 </div>
