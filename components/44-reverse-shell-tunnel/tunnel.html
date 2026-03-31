@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reverse Shell Tunnel</title>
+    <script>
+        const origWarn = console.warn;
+        console.warn = function(...args) {
+            const msg = args[0];
+            if (typeof msg === 'string' && (msg.includes('Babel') || msg.includes('Tailwind') || msg.includes('tailwindcss'))) return;
+            origWarn.apply(console, args);
+        };
+    </script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { margin: 0; background: #020804; min-height: 400vh; overflow-x: hidden; font-family: 'Inter', sans-serif; color: #aaffaa; }
+        #root { position: fixed; top: 0; left: 0; width: 100%; height: 100vh; z-index: -1; pointer-events: none;}
+        .content { position: absolute; top: 0; left: 0; width: 100%; pointer-events: none; z-index: 10;}
+        .section { height: 100vh; display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-start; padding: 15vh 10vw;}
+        .terminal-box { background: rgba(0, 20, 0, 0.7); border: 1px solid #00ff44; padding: 2rem; border-radius: 8px; backdrop-filter: blur(4px); max-width: 600px; box-shadow: 0 0 20px rgba(0, 255, 68, 0.1); }
+        h1, h2, p { text-shadow: 0 2px 10px rgba(0,255,68,0.4); }
+        .cursor { display: inline-block; width: 10px; height: 1.2em; background: #00ff44; animation: blink 1s step-end infinite; vertical-align: bottom; }
+        @keyframes blink { 50% { opacity: 0; } }
+    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;700&display=swap" rel="stylesheet">
+    <script type="importmap">
+    {
+        "imports": {
+            "react": "https://esm.sh/react@18.2.0",
+            "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+            "@react-three/fiber": "https://esm.sh/@react-three/fiber@8.15.12?external=react,react-dom,three",
+            "three": "https://esm.sh/three@0.160.0"
+        }
+    }
+    </script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body>
+    <div id="root"></div>
+    <div class="content" style="font-family: 'Fira Code', monospace;">
+        <div class="section">
+            <div class="terminal-box">
+                <h1 class="text-4xl font-bold mb-4 text-[#00ff44]">> _INITIALIZE_BREACH</h1>
+                <p class="text-lg text-[#88ffaa]">SYSTEM CONNECTED. ENCRYPTED TUNNEL ESTABLISHED.</p>
+                <p class="text-sm text-[#44aa66] mt-4">SCROLL DOWN TO PENETRATE DEEPER INTO THE NETWORK ARCHITECTURE.</p>
+            </div>
+        </div>
+        <div class="section">
+            <div class="terminal-box ml-auto">
+                <h2 class="text-3xl font-semibold mb-3 text-[#00ff44]">> BYPASS_FIREWALL_LAYERS</h2>
+                <p class="text-lg text-[#88ffaa]">Analyzing proxy nodes and rerouting traffic through hexagonal vectors.</p>
+            </div>
+        </div>
+        <div class="section">
+            <div class="terminal-box">
+                <h2 class="text-3xl font-semibold mb-3 text-[#00ff44]">> INITIATE_HYPERSPEED</h2>
+                <p class="text-lg text-[#88ffaa]">Increase scroll velocity to warp the visual field of view (FOV). This simulates high-speed data exfiltration.</p>
+            </div>
+        </div>
+        <div class="section">
+            <div class="terminal-box mx-auto text-center" style="margin-top: 10vh;">
+                <h2 class="text-5xl font-bold mb-3 text-[#00ff44]">ROOT_ACCESS_GRANTED<span class="cursor"></span></h2>
+                <p class="text-xl text-[#88ffaa]">You have reached the core mainframe.</p>
+            </div>
+        </div>
+    </div>
+
+    <script type="text/babel" data-type="module">
+        import React, { useRef, useMemo } from 'react';
+        import { createRoot } from 'react-dom/client';
+        import { Canvas, useFrame, useThree } from '@react-three/fiber';
+        import * as THREE from 'three';
+
+        const DataPacket = ({ index }) => {
+            const ref = useRef();
+            const startZ = useMemo(() => -250 + Math.random() * 300, []);
+            const speed = useMemo(() => 0.5 + Math.random() * 2.5, []);
+            const radius = useMemo(() => 0.03 + Math.random() * 0.08, []);
+            const angle = useMemo(() => Math.random() * Math.PI * 2, []);
+            const dist = useMemo(() => 1.5 + Math.random() * 6.5, []);
+
+            useFrame(({ clock }) => {
+                if(!ref.current) return;
+                const time = clock.getElapsedTime();
+                // Move towards camera repeatedly
+                let z = startZ + (time * speed * 25) % 350;
+                if (z > 60) z -= 350;
+                
+                ref.current.position.set(
+                    Math.cos(angle) * dist,
+                    Math.sin(angle) * dist,
+                    z
+                );
+            });
+
+            return (
+                <mesh ref={ref}>
+                    <sphereGeometry args={[radius, 8, 8]} />
+                    <meshBasicMaterial color="#aaffaa" />
+                </mesh>
+            );
+        };
+
+        const Tunnel = () => {
+            const meshRef = useRef();
+            const { camera } = useThree();
+            const lastScroll = useRef(window.scrollY);
+            const scrollVelocity = useRef(0);
+            
+            useFrame(({ clock }) => {
+                const scrollY = window.scrollY;
+                const delta = scrollY - lastScroll.current;
+                lastScroll.current = scrollY;
+                
+                // Track velocity with exponential smoothing
+                scrollVelocity.current += (delta - scrollVelocity.current) * 0.1;
+                
+                const time = clock.getElapsedTime();
+
+                // Move camera down the Z axis
+                // Start at z = 50, move deep to negative z
+                camera.position.z = 50 - scrollY * 0.06; 
+                
+                // FoV warp effect based on absolute velocity (Hyperspeed!)
+                // Base FOV 60, stretches up to 130 when scrolling fast
+                const targetFov = 60 + Math.min(Math.abs(scrollVelocity.current) * 1.5, 70);
+                camera.fov += (targetFov - camera.fov) * 0.1;
+                camera.updateProjectionMatrix();
+
+                // Rotate the main cylinder
+                if(meshRef.current) {
+                    meshRef.current.rotation.y = time * 0.15;
+                    // Slightly tilt the tunnel to make it feel organic/curved
+                    meshRef.current.rotation.x = Math.PI / 2 + Math.sin(time * 0.4) * 0.05;
+                    meshRef.current.rotation.z = Math.cos(time * 0.3) * 0.05;
+                }
+            });
+
+            return (
+                <mesh ref={meshRef} position={[0, 0, -100]}>
+                    {/* length 400 is enough for 400vh scrolling at 0.06 multiplier (400vh ~= 3500px -> 210 units) */}
+                    <cylinderGeometry args={[5, 12, 400, 6, 80, true]} />
+                    <meshBasicMaterial 
+                        color="#00ff44" 
+                        wireframe={true} 
+                        transparent 
+                        opacity={0.35} 
+                        fog={true}
+                    />
+                </mesh>
+            );
+        };
+
+        const App = () => {
+            return (
+                <Canvas camera={{ position: [0, 0, 50], fov: 60 }}>
+                    <color attach="background" args={['#020804']} />
+                    <fog attach="fog" args={['#020804', 15, 90]} />
+                    <Tunnel />
+                    
+                    {Array.from({ length: 200 }).map((_, i) => (
+                        <DataPacket key={i} index={i} />
+                    ))}
+                </Canvas>
+            );
+        };
+
+        const root = createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>

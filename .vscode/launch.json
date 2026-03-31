@@ -6,7 +6,13 @@
             "request": "launch",
             "name": "Open HTML File in Chrome",
             "file": "${file}",
-            "webRoot": "${workspaceFolder}"
+            "webRoot": "${workspaceFolder}",
+            "sourceMaps": false,
+            "resolveSourceMapLocations": [
+                "${workspaceFolder}/**",
+                "!**/node_modules/**",
+                "!**/@babel/**"
+            ]
         }
     ]
 }

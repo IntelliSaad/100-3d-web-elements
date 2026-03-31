@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prism Theme Switcher</title>
+    <script>
+        const origWarn = console.warn;
+        console.warn = function(...args) {
+            const msg = args[0];
+            if (typeof msg === 'string' && (msg.includes('Babel') || msg.includes('Tailwind') || msg.includes('tailwindcss'))) return;
+            origWarn.apply(console, args);
+        };
+    </script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        :root {
+            --theme-primary: #6366f1;
+            --theme-glow: rgba(99,102,241,0.25);
+            --theme-accent: #a5b4fc;
+            --theme-border: rgba(99,102,241,0.3);
+            --theme-bg: rgba(99,102,241,0.08);
+        }
+        body {
+            margin: 0;
+            background: #07080f;
+            min-height: 100vh;
+            font-family: 'Inter', sans-serif;
+            color: white;
+            overflow: hidden;
+            transition: background 0.6s ease;
+        }
+        #root { width: 100%; height: 100vh; }
+
+        /* Navbar */
+        .navbar {
+            position: fixed; top: 0; left: 0; right: 0;
+            height: 64px;
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 0 2rem;
+            background: rgba(7, 8, 15, 0.82);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--theme-border);
+            box-shadow: 0 1px 0 var(--theme-glow);
+            z-index: 50;
+            transition: border-color 0.5s, box-shadow 0.5s;
+        }
+        .nav-logo {
+            font-size: 1.1rem; font-weight: 800;
+            color: var(--theme-primary);
+            letter-spacing: 0.08em;
+            transition: color 0.5s;
+            text-shadow: 0 0 20px var(--theme-glow);
+        }
+        .nav-links { display: flex; gap: 2.5rem; align-items: center; }
+        .nav-link {
+            font-size: 0.82rem; color: #64748b;
+            cursor: pointer; transition: color 0.2s;
+        }
+        .nav-link:hover { color: var(--theme-accent); transition: color 0.15s; }
+
+        /* Prism canvas wrapper in top-right corner */
+        .prism-wrapper {
+            width: 52px; height: 52px;
+            cursor: pointer;
+            position: relative;
+        }
+        .prism-wrapper::after {
+            content: 'Click';
+            position: absolute;
+            bottom: -18px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 0.55rem;
+            color: #475569;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            white-space: nowrap;
+        }
+
+        /* Page content */
+        .page-content {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 2rem;
+            padding-top: 64px;
+        }
+        .theme-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.6rem;
+            padding: 0.5rem 1.2rem;
+            border-radius: 999px;
+            background: var(--theme-bg);
+            border: 1px solid var(--theme-border);
+            color: var(--theme-accent);
+            font-size: 0.75rem;
+            font-weight: 600;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            transition: background 0.5s, border-color 0.5s, color 0.5s;
+        }
+        .theme-dot {
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            background: var(--theme-primary);
+            box-shadow: 0 0 8px var(--theme-primary);
+            transition: background 0.5s, box-shadow 0.5s;
+        }
+        h1 {
+            font-size: 4rem; font-weight: 900;
+            background: linear-gradient(135deg, var(--theme-accent), var(--theme-primary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            letter-spacing: -0.04em;
+            text-align: center;
+            transition: background 0.5s;
+        }
+        .card-row { display: flex; gap: 1.5rem; }
+        .card {
+            width: 180px; height: 100px;
+            border-radius: 16px;
+            background: var(--theme-bg);
+            border: 1px solid var(--theme-border);
+            display: flex; align-items: center; justify-content: center;
+            flex-direction: column;
+            gap: 0.5rem;
+            transition: background 0.5s, border-color 0.5s;
+        }
+        .card-icon { font-size: 1.8rem; }
+        .card-label { font-size: 0.7rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.1em; }
+        .glow-bar {
+            width: 300px; height: 2px;
+            border-radius: 1px;
+            background: linear-gradient(to right, transparent, var(--theme-primary), transparent);
+            box-shadow: 0 0 20px var(--theme-primary);
+            transition: background 0.5s, box-shadow 0.5s;
+        }
+    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <script type="importmap">
+    {
+        "imports": {
+            "react": "https://esm.sh/react@18.2.0",
+            "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+            "@react-three/fiber": "https://esm.sh/@react-three/fiber@8.15.12?external=react,react-dom,three",
+            "@react-three/drei": "https://esm.sh/@react-three/drei@9.96.1?external=react,react-dom,three,@react-three/fiber",
+            "three": "https://esm.sh/three@0.160.0",
+            "framer-motion": "https://esm.sh/framer-motion@10.16.4?external=react,react-dom"
+        }
+    }
+    </script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body>
+    <div id="root"></div>
+    <script type="text/babel" data-type="module">
+        import React, { useRef, useState, useCallback, useEffect, Suspense } from 'react';
+        import { createRoot } from 'react-dom/client';
+        import { Canvas, useFrame } from '@react-three/fiber';
+        import { MeshTransmissionMaterial, Environment } from '@react-three/drei';
+        import { motion, AnimatePresence } from 'framer-motion';
+        import * as THREE from 'three';
+
+        // ─── Theme definitions ────────────────────────────────────────────────────
+        const THEMES = [
+            {
+                name: 'Midnight Indigo',
+                primary: '#6366f1',
+                accent: '#a5b4fc',
+                glow: 'rgba(99,102,241,0.25)',
+                border: 'rgba(99,102,241,0.3)',
+                bg: 'rgba(99,102,241,0.08)',
+                lights: ['#6366f1', '#818cf8', '#4338ca'],
+            },
+            {
+                name: 'Neon Pink',
+                primary: '#ec4899',
+                accent: '#f9a8d4',
+                glow: 'rgba(236,72,153,0.25)',
+                border: 'rgba(236,72,153,0.3)',
+                bg: 'rgba(236,72,153,0.08)',
+                lights: ['#ec4899', '#f472b6', '#be185d'],
+            },
+            {
+                name: 'Cyber Cyan',
+                primary: '#06b6d4',
+                accent: '#67e8f9',
+                glow: 'rgba(6,182,212,0.25)',
+                border: 'rgba(6,182,212,0.3)',
+                bg: 'rgba(6,182,212,0.08)',
+                lights: ['#06b6d4', '#22d3ee', '#0e7490'],
+            },
+        ];
+
+        // ─── Apply theme to CSS vars ───────────────────────────────────────────────
+        const applyTheme = (t) => {
+            const r = document.documentElement.style;
+            r.setProperty('--theme-primary', t.primary);
+            r.setProperty('--theme-accent', t.accent);
+            r.setProperty('--theme-glow', t.glow);
+            r.setProperty('--theme-border', t.border);
+            r.setProperty('--theme-bg', t.bg);
+        };
+
+        // ─── The lightweight 3D geometric core ────────────────────────────────────
+        const GlassPrism = ({ themeIndex, onThemeChange, lights }) => {
+            const prismRef = useRef();
+            
+            // Target rotation snaps per face (we'll do 4 faces now for Icosahedron visual ease, but functionally the same)
+            const targetRotY = useRef(0);
+            const isClicking = useRef(false);
+
+            useFrame(({ clock }) => {
+                if (!prismRef.current) return;
+                const time = clock.getElapsedTime();
+
+                // Idle slow auto-rotation
+                if (!isClicking.current) {
+                    targetRotY.current += 0.006;
+                }
+                prismRef.current.rotation.y += (targetRotY.current - prismRef.current.rotation.y) * 0.08;
+                // Complex organic wobble
+                prismRef.current.rotation.x = Math.sin(time * 0.8) * 0.2;
+                prismRef.current.rotation.z = Math.cos(time * 0.5) * 0.15;
+            });
+
+            const handleClick = useCallback(() => {
+                const nextIndex = (themeIndex + 1) % THEMES.length;
+                // Snap spin 90 degrees
+                targetRotY.current += Math.PI / 2;
+                isClicking.current = true;
+                setTimeout(() => { isClicking.current = false; }, 600);
+                onThemeChange(nextIndex);
+            }, [themeIndex, onThemeChange]);
+
+            return (
+                <group
+                    ref={prismRef}
+                    onClick={handleClick}
+                    onPointerOver={() => { document.body.style.cursor = 'pointer'; }}
+                    onPointerOut={() => { document.body.style.cursor = 'auto'; }}
+                >
+                    {/* Outer sleek dark wireframe */}
+                    <mesh>
+                        <icosahedronGeometry args={[1.2, 0]} />
+                        <meshStandardMaterial 
+                            color="#1e293b" 
+                            wireframe 
+                            wireframeLinewidth={2}
+                            transparent opacity={0.4} 
+                        />
+                    </mesh>
+
+                    {/* Inner glowing solid core */}
+                    <mesh scale={0.7}>
+                        <octahedronGeometry args={[1, 0]} />
+                        <meshStandardMaterial 
+                            color={lights[0]} 
+                            emissive={lights[1]} 
+                            emissiveIntensity={2} 
+                            roughness={0.2}
+                            metalness={0.8}
+                        />
+                    </mesh>
+
+                    {/* Surrounding ambient halo matching the theme */}
+                    <pointLight color={lights[1]} intensity={5} distance={3} decay={2} />
+                </group>
+            );
+        };
+
+        // ─── Prism Canvas ─────────────────────────────────────────────────────────
+        const PrismCanvas = ({ themeIndex, onThemeChange }) => {
+            const theme = THEMES[themeIndex];
+            return (
+                <Canvas camera={{ position: [0, 0, 3.2], fov: 38 }} style={{ background: 'transparent' }}>
+                    <ambientLight intensity={0.1} />
+                    <Suspense fallback={null}>
+                        <Environment preset="studio" />
+                        <GlassPrism
+                            themeIndex={themeIndex}
+                            onThemeChange={onThemeChange}
+                            lights={theme.lights}
+                        />
+                    </Suspense>
+                </Canvas>
+            );
+        };
+
+        // ─── Flash overlay on theme change ────────────────────────────────────────
+        const FlashOverlay = ({ color, trigger }) => (
+            <AnimatePresence>
+                {trigger && (
+                    <motion.div
+                        key={trigger}
+                        style={{
+                            position: 'fixed', inset: 0,
+                            background: color,
+                            pointerEvents: 'none',
+                            zIndex: 9999,
+                        }}
+                        initial={{ opacity: 0.35 }}
+                        animate={{ opacity: 0 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.55, ease: 'easeOut' }}
+                    />
+                )}
+            </AnimatePresence>
+        );
+
+        // ─── App ──────────────────────────────────────────────────────────────────
+        const App = () => {
+            const [themeIndex, setThemeIndex] = useState(0);
+            const [flashTrigger, setFlashTrigger] = useState(null);
+            const theme = THEMES[themeIndex];
+
+            const handleThemeChange = useCallback((newIndex) => {
+                applyTheme(THEMES[newIndex]);
+                setThemeIndex(newIndex);
+                setFlashTrigger(Date.now()); // unique key triggers AnimatePresence re-entry
+            }, []);
+
+            return (
+                <>
+                    <FlashOverlay color={theme.primary} trigger={flashTrigger} />
+
+                    {/* ── Navbar ── */}
+                    <nav className="navbar">
+                        <span className="nav-logo">PRISM UI</span>
+                        <div className="nav-links">
+                            <span className="nav-link">Components</span>
+                            <span className="nav-link">Docs</span>
+                            <span className="nav-link">GitHub</span>
+                            <div className="prism-wrapper">
+                                <PrismCanvas
+                                    themeIndex={themeIndex}
+                                    onThemeChange={handleThemeChange}
+                                />
+                            </div>
+                        </div>
+                    </nav>
+
+                    {/* ── Page content ── */}
+                    <div className="page-content">
+                        <div className="theme-badge">
+                            <span className="theme-dot" />
+                            {theme.name}
+                        </div>
+
+                        <h1>Design System<br />in Crystal Clear</h1>
+
+                        <div className="glow-bar" />
+
+                        <div className="card-row">
+                            <div className="card">
+                                <span className="card-icon">🔷</span>
+                                <span className="card-label">Components</span>
+                            </div>
+                            <div className="card">
+                                <span className="card-icon">✨</span>
+                                <span className="card-label">Animations</span>
+                            </div>
+                            <div className="card">
+                                <span className="card-icon">🌐</span>
+                                <span className="card-label">WebGL</span>
+                            </div>
+                        </div>
+
+                        <p style={{ color: '#475569', fontSize: '0.8rem', letterSpacing: '0.05em' }}>
+                            Click the glass prism in the navbar to cycle themes ↗
+                        </p>
+                    </div>
+                </>
+            );
+        };
+
+        // Apply default theme on load
+        applyTheme(THEMES[0]);
+        createRoot(document.getElementById('root')).render(<App />);
+    </script>
+</body>
+</html>

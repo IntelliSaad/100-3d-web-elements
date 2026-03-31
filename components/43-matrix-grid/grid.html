@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scroll-Driven Matrix Transformation Grid</title>
+    <script>
+        const origWarn = console.warn;
+        console.warn = function(...args) {
+            const msg = args[0];
+            if (typeof msg === 'string' && (msg.includes('Babel') || msg.includes('Tailwind') || msg.includes('tailwindcss'))) return;
+            origWarn.apply(console, args);
+        };
+    </script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { margin: 0; background: #050505; min-height: 500vh; overflow-x: hidden; font-family: 'Inter', sans-serif; color: white; }
+        #root { position: fixed; top: 0; left: 0; width: 100%; height: 100vh; z-index: -1; pointer-events: none;}
+        .content { position: absolute; top: 0; left: 0; width: 100%; pointer-events: none; }
+        .section { height: 100vh; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; padding-left: 10vw;}
+        h1, h2, p { text-shadow: 0 4px 20px rgba(0,0,0,0.8); }
+    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script type="importmap">
+    {
+        "imports": {
+            "react": "https://esm.sh/react@18.2.0",
+            "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+            "@react-three/fiber": "https://esm.sh/@react-three/fiber@8.15.12?external=react,react-dom,three",
+            "three": "https://esm.sh/three@0.160.0"
+        }
+    }
+    </script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body>
+    <div id="root"></div>
+    <div class="content">
+        <div class="section">
+            <h1 class="text-6xl font-bold mb-4 text-emerald-400">Data Architecture</h1>
+            <p class="text-xl text-slate-300 max-w-lg">Scroll to observe real-time matrix transformations applied to the foundational dataset. Integrated physics processing shifts dimensions dynamically.</p>
+        </div>
+        <div class="section">
+            <h2 class="text-5xl font-semibold mb-3 text-cyan-400">Shear Vectoring</h2>
+            <p class="text-lg text-slate-400 max-w-md">Linear algebraic transformations push the grid structure out of alignment, revealing underlying network threads before snapping back.</p>
+        </div>
+        <div class="section">
+            <h2 class="text-5xl font-semibold mb-3 text-purple-400">Dimensional Spread</h2>
+            <p class="text-lg text-slate-400 max-w-md">Data points scatter across unmapped axes, expanding the volume of the search index before compression.</p>
+        </div>
+        <div class="section">
+            <h2 class="text-5xl font-semibold mb-3 text-fuchsia-400">Rotational Chaos</h2>
+            <p class="text-lg text-slate-400 max-w-md">High-velocity multi-axis rotation simulates deep-learning feature extraction algorithms processing spatial data.</p>
+        </div>
+        <div class="section">
+            <h2 class="text-6xl font-bold mb-3 text-white">Structural Synthesis</h2>
+            <p class="text-xl text-slate-300 max-w-lg">The system snaps into a perfect cube topology, stabilizing the data map into a pure, optimized state.</p>
+        </div>
+    </div>
+
+    <script type="text/babel" data-type="module">
+        import React, { useRef, useMemo } from 'react';
+        import { createRoot } from 'react-dom/client';
+        import { Canvas, useFrame } from '@react-three/fiber';
+        import * as THREE from 'three';
+
+        const MatrixGrid = () => {
+            const meshRef = useRef();
+            const count = 12; // 12x12x12 = 1728 points
+            const total = count * count * count;
+            
+            const dummy = useMemo(() => new THREE.Object3D(), []);
+            
+            // Generate base positions (a perfect cube of points)
+            const positions = useMemo(() => {
+                const pos = [];
+                const offset = (count - 1) / 2;
+                const spacing = 1.2;
+                for(let x=0; x<count; x++){
+                    for(let y=0; y<count; y++){
+                        for(let z=0; z<count; z++) {
+                            pos.push({
+                                x: (x - offset) * spacing,
+                                y: (y - offset) * spacing,
+                                z: (z - offset) * spacing,
+                            });
+                        }
+                    }
+                }
+                return pos;
+            }, [count]);
+
+            useFrame(({ clock }) => {
+                // Scroll progress from 0 (top) to 1 (bottom)
+                const docHeight = document.documentElement.scrollHeight - window.innerHeight;
+                const scrollY = window.scrollY;
+                const progress = Math.min(1, Math.max(0, scrollY / (docHeight || 1)));
+
+                // Transformations
+                const shearAmt = Math.sin(progress * Math.PI) * 1.5;
+                const spreadAmt = 1 + Math.sin(progress * Math.PI) * 2.0;
+                const chaosAmt = Math.sin(Math.max(0, (progress - 0.5) * 2) * Math.PI) * 2.0;
+
+                // Snap logic at the end
+                const isSnap = progress > 0.95;
+                const ease = isSnap ? Math.max(0, (1 - progress) / 0.05) : 1; 
+
+                let i = 0;
+                const time = clock.getElapsedTime();
+                
+                // Global rotation
+                if(meshRef.current) {
+                    meshRef.current.rotation.y = time * 0.1 + progress * Math.PI * 4;
+                    meshRef.current.rotation.x = time * 0.05 + progress * Math.PI * 2;
+                }
+
+                for(let x=0; x<count; x++){
+                    for(let y=0; y<count; y++){
+                        for(let z=0; z<count; z++) {
+                            const base = positions[i];
+                            
+                            let px = base.x;
+                            let py = base.y;
+                            let pz = base.z;
+                            
+                            if (ease > 0) {
+                                // Apply Scale/Spread
+                                const currentSpread = 1 + (spreadAmt - 1) * ease;
+                                px *= currentSpread;
+                                py *= currentSpread;
+                                pz *= currentSpread;
+                                
+                                // Apply Shear transform: X depends on Y, Z depends on X
+                                const currentShear = shearAmt * ease;
+                                px += py * currentShear;
+                                pz += px * currentShear * 0.5;
+                                
+                                // Apply chaotic noise 
+                                const currentChaos = chaosAmt * ease;
+                                if (currentChaos > 0) {
+                                    px += Math.sin(time * 2 + py) * currentChaos;
+                                    py += Math.cos(time * 2 + px) * currentChaos;
+                                    pz += Math.sin(time * 3 + pz) * currentChaos;
+                                }
+                            }
+
+                            dummy.position.set(px, py, pz);
+                            
+                            // Scale down points based on distance or pulse
+                            const dist = Math.sqrt(px*px + py*py + pz*pz);
+                            let pScale = 0.8;
+                            
+                            if (ease > 0) {
+                                pScale += Math.sin(time * 5 + dist) * 0.3 * ease;
+                            }
+                            
+                            dummy.scale.set(pScale, pScale, pScale);
+                            dummy.updateMatrix();
+                            meshRef.current.setMatrixAt(i, dummy.matrix);
+                            i++;
+                        }
+                    }
+                }
+                meshRef.current.instanceMatrix.needsUpdate = true;
+            });
+
+            return (
+                <instancedMesh ref={meshRef} args={[null, null, total]}>
+                    <sphereGeometry args={[0.08, 16, 16]} />
+                    <meshBasicMaterial color="#00ffcc" transparent opacity={0.8} />
+                </instancedMesh>
+            );
+        };
+
+        const App = () => {
+            return (
+                <Canvas camera={{ position: [0, 0, 30], fov: 45 }}>
+                    <color attach="background" args={['#050505']} />
+                    <fog attach="fog" args={['#050505', 10, 50]} />
+                    <MatrixGrid />
+                </Canvas>
+            );
+        };
+
+        const root = createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>

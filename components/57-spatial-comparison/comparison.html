@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Spatial Comparison Matrix</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { margin: 0; background: #030712; min-height: 100vh; overflow: hidden; font-family: 'Inter', sans-serif; }
+        #root { width: 100%; height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        
+        .preserve-3d {
+            transform-style: preserve-3d;
+        }
+
+        .glass-panel {
+            background: linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.01) 100%);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255,255,255,0.05);
+            box-shadow: 0 40px 100px -20px rgba(0,0,0,0.9), inset 0 1px 1px rgba(255,255,255,0.1);
+        }
+        
+        /* Darker row background for non-hovered state */
+        .glass-row {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.02);
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        
+        .glow-row {
+            background: rgba(56, 189, 248, 0.1);
+            border: 1px solid rgba(56, 189, 248, 0.3);
+            box-shadow: 0 10px 30px rgba(56, 189, 248, 0.2), inset 0 0 10px rgba(56, 189, 248, 0.1);
+        }
+
+    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+    <script type="importmap">
+    {
+        "imports": {
+            "react": "https://esm.sh/react@18.2.0",
+            "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+            "framer-motion": "https://esm.sh/framer-motion@10.16.4?external=react,react-dom"
+        }
+    }
+    </script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel" data-type="module">
+        import React, { useState } from 'react';
+        import { createRoot } from 'react-dom/client';
+        import { motion } from 'framer-motion';
+
+        const comparisonData = [
+            { label: "Architecture", left: "ARMv9", right: "x86-64" },
+            { label: "Base Clock", left: "3.2 GHz", right: "2.8 GHz" },
+            { label: "Boost Clock", left: "4.8 GHz", right: "5.4 GHz" },
+            { label: "Core Count", left: "12 Cores", right: "16 Cores" },
+            { label: "L3 Cache", left: "48 MB", right: "64 MB" },
+            { label: "TDP", left: "65W", right: "125W" }
+        ];
+
+        const App = () => {
+            const [hoveredIdx, setHoveredIdx] = useState(null);
+
+            const SpecCard = ({ side, title, subtitle }) => {
+                const isLeft = side === 'left';
+                
+                return (
+                    <motion.div 
+                        className="w-[320px] md:w-[380px] rounded-[24px] p-6 md:p-8 glass-panel preserve-3d flex flex-col relative"
+                        // Rotate outward to form a "V" shape layout facing the user
+                        initial={{ rotateY: isLeft ? 15 : -15, scale: 0.95 }}
+                        animate={{ rotateY: isLeft ? 15 : -15, scale: 1 }}
+                        transition={{ duration: 1.2, ease: "easeOut" }}
+                        style={{ transformOrigin: isLeft ? "right center" : "left center", margin: "0 2rem" }}
+                    >
+                        {/* Title Header */}
+                        <div className="mb-6 pb-4 border-b border-white/5 preserve-3d relative z-10 text-center">
+                            <h2 className="text-2xl md:text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-slate-200 to-slate-400 drop-shadow-md mb-1">{title}</h2>
+                            <p className="text-slate-500 font-semibold tracking-[0.2em] text-[10px] md:text-xs uppercase">{subtitle}</p>
+                        </div>
+
+                        {/* Specification Rows */}
+                        <div className="flex flex-col gap-3 preserve-3d flex-grow">
+                            {comparisonData.map((spec, idx) => {
+                                const isHovered = hoveredIdx === idx;
+                                const isOtherHovered = hoveredIdx !== null && hoveredIdx !== idx;
+                                const value = isLeft ? spec.left : spec.right;
+
+                                // On hover, both matching rows perfectly jump forward out of their cards to align visually in the gap.
+                                return (
+                                    <motion.div
+                                        key={idx}
+                                        onHoverStart={() => setHoveredIdx(idx)}
+                                        onHoverEnd={() => setHoveredIdx(null)}
+                                        className={`relative flex items-center p-3 md:p-4 rounded-xl cursor-default preserve-3d transition duration-300 ${isHovered ? 'glow-row' : 'glass-row'}`}
+                                        animate={{
+                                            z: isHovered ? 40 : 0,
+                                            opacity: isOtherHovered ? 0.3 : 1,
+                                            scale: isHovered ? 1.05 : 1
+                                        }}
+                                        transition={{ type: "spring", stiffness: 400, damping: 25 }}
+                                    >
+                                        <div className={`w-1/3 text-[10px] md:text-xs font-bold uppercase tracking-wider ${isHovered ? 'text-sky-400' : 'text-slate-500'}`}>
+                                            {spec.label}
+                                        </div>
+                                        <div className="w-2/3 text-right">
+                                            <span className={`text-sm md:text-md font-bold ${isHovered ? 'text-white' : 'text-slate-300'}`}>
+                                                {value}
+                                            </span>
+                                        </div>
+                                    </motion.div>
+                                );
+                            })}
+                        </div>
+                    </motion.div>
+                );
+            };
+
+            return (
+                <div className="w-full h-full relative flex flex-col items-center justify-center p-8 preserve-3d overflow-hidden" style={{ perspective: 1800 }}>
+                    <div className="absolute inset-0 z-0 bg-[radial-gradient(circle_at_center,rgba(56,189,248,0.03)_0%,transparent_60%)] pointer-events-none"></div>
+
+                    <div className="mb-20 text-center z-10 transform translate-z-[-200px]">
+                        <h1 className="text-5xl font-black mb-4 text-white drop-shadow-2xl tracking-tighter">Silicon Matrix</h1>
+                        <p className="text-slate-400 font-medium">Hover to physically align and compare specifications.</p>
+                    </div>
+
+                    <div className="flex gap-16 items-center justify-center preserve-3d z-10 w-full max-w-7xl relative">
+                        {/* Virtual Connection Beam */}
+                        <motion.div 
+                            className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[200px] h-[2px] bg-gradient-to-r from-transparent via-sky-400 to-transparent blur-[2px] opacity-0"
+                            animate={{ opacity: hoveredIdx !== null ? 0.5 : 0 }}
+                            transition={{ duration: 0.3 }}
+                        />
+
+                        <SpecCard side="left" title="M-Series Ultra" subtitle="ARM Ecosystem" />
+                        <SpecCard side="right" title="Ryzen Thread" subtitle="x86 Desktop" />
+                    </div>
+                </div>
+            );
+        };
+
+        createRoot(document.getElementById('root')).render(<App />);
+    </script>
+</body>
+</html>

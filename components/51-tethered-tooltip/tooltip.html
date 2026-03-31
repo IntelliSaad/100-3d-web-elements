@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Physics Tethered Tooltip</title>
+    <script>
+        const origWarn = console.warn;
+        console.warn = function(...args) {
+            const msg = args[0];
+            if (typeof msg === 'string' && (msg.includes('Babel') || msg.includes('Tailwind') || msg.includes('tailwindcss'))) return;
+            origWarn.apply(console, args);
+        };
+    </script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { margin: 0; background: #06070d; min-height: 100vh; overflow: hidden; font-family: 'Inter', sans-serif; color: white; }
+        #root { width: 100%; height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5rem; }
+    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script type="importmap">
+    {
+        "imports": {
+            "react": "https://esm.sh/react@18.2.0",
+            "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+            "framer-motion": "https://esm.sh/framer-motion@10.16.4?external=react,react-dom"
+        }
+    }
+    </script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body>
+    <div id="root"></div>
+    <script type="text/babel" data-type="module">
+        import React, { useState, useRef, useCallback, useEffect } from 'react';
+        import { createRoot } from 'react-dom/client';
+        import { motion, AnimatePresence, useSpring, useMotionValue } from 'framer-motion';
+
+        const TetheredTooltip = ({ children, tooltip, icon, color = '#6366f1' }) => {
+            const [visible, setVisible] = useState(false);
+            const targetRef = useRef(null);
+            const lastPos = useRef({ x: 0, y: 0, time: Date.now() });
+            const velRef = useRef({ x: 0, y: 0 });
+
+            // Spring values for position and tilt
+            const tooltipX = useMotionValue(0);
+            const tooltipY = useMotionValue(0);
+            const rotateX = useSpring(0, { stiffness: 180, damping: 15 });
+            const rotateY = useSpring(0, { stiffness: 180, damping: 15 });
+            const tx = useSpring(tooltipX, { stiffness: 120, damping: 18 });
+            const ty = useSpring(tooltipY, { stiffness: 120, damping: 18 });
+
+            const handleMouseMove = useCallback((e) => {
+                const rect = targetRef.current?.getBoundingClientRect();
+                if (!rect) return;
+
+                const now = Date.now();
+                const dt = Math.max(1, now - lastPos.current.time);
+
+                // Compute velocity (pixels per ms)
+                const vx = (e.clientX - lastPos.current.x) / dt;
+                const vy = (e.clientY - lastPos.current.y) / dt;
+                velRef.current = { x: vx, y: vy };
+
+                lastPos.current = { x: e.clientX, y: e.clientY, time: now };
+
+                // Offset relative to element center
+                const cx = rect.left + rect.width / 2;
+                const cy = rect.top + rect.height / 2;
+                const dx = e.clientX - cx; // -half..+half
+                const dy = e.clientY - cy;
+
+                // Clamp to element bounds for offset
+                const clampedDx = Math.max(-rect.width / 2, Math.min(rect.width / 2, dx));
+                const clampedDy = Math.max(-rect.height / 2, Math.min(rect.height / 2, dy));
+
+                tooltipX.set(clampedDx * 0.7);
+                // Tilt the tooltip based on direction of movement, velocity adds momentum
+                rotateY.set(clampedDx / (rect.width / 2) * 22 + vx * 120);
+                rotateX.set(-clampedDy / (rect.height / 2) * 14 + vy * 80);
+            }, [tooltipX, tooltipY, rotateX, rotateY]);
+
+            const handleMouseEnter = useCallback(() => {
+                setVisible(true);
+                tooltipY.set(-2);
+            }, [tooltipY]);
+
+            const handleMouseLeave = useCallback(() => {
+                setVisible(false);
+                rotateX.set(0);
+                rotateY.set(0);
+                tooltipX.set(0);
+                tooltipY.set(0);
+            }, [rotateX, rotateY, tooltipX, tooltipY]);
+
+            return (
+                <div
+                    ref={targetRef}
+                    className="relative inline-flex items-center justify-center cursor-pointer"
+                    style={{ userSelect: 'none' }}
+                    onMouseEnter={handleMouseEnter}
+                    onMouseLeave={handleMouseLeave}
+                    onMouseMove={handleMouseMove}
+                >
+                    {children}
+
+                    <AnimatePresence>
+                        {visible && (
+                            <motion.div
+                                style={{
+                                    position: 'absolute',
+                                    bottom: 'calc(100% + 18px)',
+                                    left: '50%',
+                                    x: tx,
+                                    y: ty,
+                                    marginLeft: '-50%',
+                                    rotateX,
+                                    rotateY,
+                                    transformPerspective: 600,
+                                    zIndex: 100,
+                                    originX: '50%',
+                                    originY: '100%',
+                                    transformStyle: 'preserve-3d',
+                                }}
+                                initial={{ opacity: 0, y: 12, scale: 0.88, rotateX: -10 }}
+                                animate={{ opacity: 1, y: 0, scale: 1, rotateX: 0 }}
+                                exit={{ opacity: 0, y: 8, scale: 0.9 }}
+                                transition={{ type: 'spring', stiffness: 350, damping: 22 }}
+                            >
+                                {/* Tether line */}
+                                <div style={{
+                                    position: 'absolute',
+                                    bottom: -16, left: '50%', marginLeft: -1,
+                                    width: 2, height: 18,
+                                    background: `linear-gradient(to bottom, ${color}80, transparent)`,
+                                    borderRadius: 1,
+                                }} />
+
+                                {/* Glassmorphic tooltip card */}
+                                <div
+                                    style={{
+                                        background: 'rgba(12, 15, 28, 0.88)',
+                                        border: `1px solid ${color}40`,
+                                        borderRadius: 16,
+                                        padding: '14px 18px',
+                                        backdropFilter: 'blur(20px)',
+                                        boxShadow: `0 8px 32px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.06) inset, 0 4px 20px ${color}25`,
+                                        minWidth: 200,
+                                        maxWidth: 280,
+                                    }}
+                                >
+                                    {/* Glassmorphic sheen */}
+                                    <div style={{
+                                        position: 'absolute', top: 0, left: '10%', right: '10%',
+                                        height: 1,
+                                        background: `linear-gradient(to right, transparent, ${color}60, transparent)`,
+                                    }} />
+                                    {tooltip}
+                                </div>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+                </div>
+            );
+        };
+
+        // Demo tooltip contents
+        const TooltipContent1 = () => (
+            <div>
+                <div className="flex items-center gap-2 mb-2">
+                    <span className="text-base">🧲</span>
+                    <span className="text-sm font-semibold text-white">Magnetic Physics</span>
+                </div>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                    This tooltip swings and tilts like a physical luggage tag, responding to mouse momentum with real spring physics.
+                </p>
+            </div>
+        );
+
+        const TooltipContent2 = () => (
+            <div>
+                <div className="flex items-center gap-2 mb-2">
+                    <span className="text-base">⚡</span>
+                    <span className="text-sm font-semibold text-white">Zero Canvas</span>
+                </div>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                    Pure CSS 3D transforms + Framer Motion springs. No WebGL or canvas elements. 100% accessible and SEO-safe.
+                </p>
+                <div className="mt-2 flex items-center gap-2">
+                    <span className="text-xs bg-violet-900/50 text-violet-300 px-2 py-0.5 rounded-full">Framer Motion</span>
+                    <span className="text-xs bg-slate-800/50 text-slate-300 px-2 py-0.5 rounded-full">CSS 3D</span>
+                </div>
+            </div>
+        );
+
+        const TooltipContent3 = () => (
+            <div>
+                <div className="flex items-center gap-2 mb-2.5">
+                    <span className="text-base">📊</span>
+                    <span className="text-sm font-semibold text-white">Performance</span>
+                </div>
+                <div className="flex items-center justify-between text-xs mb-1.5">
+                    <span className="text-slate-500">CPU Usage</span>
+                    <span className="text-emerald-400 font-medium">~0.2%</span>
+                </div>
+                <div className="h-1 rounded-full bg-slate-800 overflow-hidden mb-2">
+                    <div className="h-full rounded-full w-[2%] bg-emerald-400" />
+                </div>
+                <div className="flex items-center justify-between text-xs mb-1.5">
+                    <span className="text-slate-500">Canvas Overhead</span>
+                    <span className="text-sky-400 font-medium">Zero</span>
+                </div>
+                <div className="h-1 rounded-full bg-slate-800 overflow-hidden">
+                    <div className="h-full rounded-full w-0 bg-sky-400" />
+                </div>
+            </div>
+        );
+
+        const App = () => (
+            <>
+                <div className="text-center">
+                    <p className="text-xs uppercase tracking-[0.3em] text-slate-600 mb-2">Physics-Based Interaction</p>
+                    <h1 className="text-4xl font-bold text-white mb-1">Tethered Tooltip</h1>
+                    <p className="text-slate-500 text-sm">Hover the badges below — move your mouse fast for extra swing</p>
+                </div>
+
+                <div className="flex flex-wrap items-center justify-center gap-6">
+                    <TetheredTooltip color="#6366f1" tooltip={<TooltipContent1 />}>
+                        <div className="flex items-center gap-2.5 px-5 py-3 rounded-2xl cursor-pointer"
+                            style={{ background: 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.3)' }}>
+                            <span className="text-xl">🧲</span>
+                            <span className="font-semibold text-indigo-300 text-sm">Hover me</span>
+                        </div>
+                    </TetheredTooltip>
+
+                    <TetheredTooltip color="#a855f7" tooltip={<TooltipContent2 />}>
+                        <div className="flex items-center gap-2.5 px-5 py-3 rounded-2xl cursor-pointer"
+                            style={{ background: 'rgba(168,85,247,0.12)', border: '1px solid rgba(168,85,247,0.3)' }}>
+                            <span className="text-xl">⚡</span>
+                            <span className="font-semibold text-purple-300 text-sm">Zero Canvas</span>
+                        </div>
+                    </TetheredTooltip>
+
+                    <TetheredTooltip color="#22c55e" tooltip={<TooltipContent3 />}>
+                        <div className="flex items-center gap-2.5 px-5 py-3 rounded-2xl cursor-pointer"
+                            style={{ background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)' }}>
+                            <span className="text-xl">📊</span>
+                            <span className="font-semibold text-emerald-300 text-sm">Performance</span>
+                        </div>
+                    </TetheredTooltip>
+                </div>
+            </>
+        );
+
+        createRoot(document.getElementById('root')).render(<App />);
+    </script>
+</body>
+</html>

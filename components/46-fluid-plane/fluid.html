@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Fluid Plane</title>
+    <script>
+        const origWarn = console.warn;
+        console.warn = function(...args) {
+            const msg = args[0];
+            if (typeof msg === 'string' && (msg.includes('Babel') || msg.includes('Tailwind') || msg.includes('tailwindcss'))) return;
+            origWarn.apply(console, args);
+        };
+    </script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { margin: 0; background: #010204; min-height: 400vh; overflow-x: hidden; font-family: 'Inter', sans-serif; color: white; }
+        #root { position: fixed; top: 0; left: 0; width: 100%; height: 100vh; z-index: -1; pointer-events: none;}
+        .content { position: absolute; top: 0; left: 0; width: 100%; pointer-events: none; }
+        .section { height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;}
+        h1, h2, p { text-shadow: 0 4px 20px rgba(0,0,0,0.8); }
+    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script type="importmap">
+    {
+        "imports": {
+            "react": "https://esm.sh/react@18.2.0",
+            "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+            "@react-three/fiber": "https://esm.sh/@react-three/fiber@8.15.12?external=react,react-dom,three",
+            "three": "https://esm.sh/three@0.160.0"
+        }
+    }
+    </script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body>
+    <div id="root"></div>
+    <div class="content">
+        <div class="section">
+            <h1 class="text-7xl font-bold mb-4 tracking-tighter mix-blend-difference pb-8">Fluid Dynamics</h1>
+            <p class="text-xl text-slate-300 max-w-lg">A scroll-reactive 3D fluid plane powered by custom GLSL shaders. Scroll gently for ripples.</p>
+        </div>
+        <div class="section">
+            <h2 class="text-6xl font-bold mb-3 tracking-tight mix-blend-difference pb-8">Surge the Wave</h2>
+            <p class="text-xl text-slate-300 max-w-lg">Scroll rapidly to physically surge the liquid, creating a massive cinematic wave crashing towards the camera.</p>
+        </div>
+        <div class="section">
+            <h2 class="text-6xl font-bold mb-3 tracking-tight mix-blend-difference pb-8">Pure Mathematics</h2>
+            <p class="text-xl text-slate-300 max-w-lg">No heavy geometries. 60 FPS guaranteed by passing variables directly into the WebGL Vertex Shader.</p>
+        </div>
+        <div class="section">
+            <h2 class="text-6xl font-bold mb-3 tracking-tight mix-blend-difference pb-8">Settle</h2>
+            <p class="text-xl text-slate-300 max-w-lg">The physics naturally dampen, returning the surface to a calm, dark pool.</p>
+        </div>
+    </div>
+
+    <script type="text/babel" data-type="module">
+        import React, { useRef, useMemo } from 'react';
+        import { createRoot } from 'react-dom/client';
+        import { Canvas, useFrame } from '@react-three/fiber';
+        import * as THREE from 'three';
+
+        const vertexShader = `
+            uniform float uTime;
+            uniform float uWaveAmp;
+
+            varying vec2 vUv;
+            varying float vElevation;
+
+            void main() {
+                vUv = uv;
+                vec4 modelPosition = modelMatrix * vec4(position, 1.0);
+                
+                // Base broad wave
+                float elevation = sin(modelPosition.x * 0.3 + uTime * 0.8) * 
+                                  sin(modelPosition.z * 0.3 + uTime * 0.8) * uWaveAmp;
+                                  
+                // Secondary faster ripples
+                elevation += sin(modelPosition.x * 1.5 - uTime * 1.5) * 0.3 * uWaveAmp * 0.5;
+                elevation += cos(modelPosition.z * 2.0 + uTime * 2.0) * 0.2 * uWaveAmp * 0.5;
+                
+                modelPosition.y += elevation;
+                
+                vElevation = elevation;
+                
+                vec4 viewPosition = viewMatrix * modelPosition;
+                vec4 projectedPosition = projectionMatrix * viewPosition;
+                
+                gl_Position = projectedPosition;
+            }
+        `;
+
+        const fragmentShader = `
+            uniform vec3 uColorStart;
+            uniform vec3 uColorEnd;
+            uniform float uWaveAmp;
+
+            varying vec2 vUv;
+            varying float vElevation;
+
+            void main() {
+                // Mix colors based on elevation
+                // We divide by a calculated max elevation to normalize
+                float maxElev = max(0.5, uWaveAmp * 1.5);
+                float mixStrength = (vElevation + maxElev) / (maxElev * 2.0);
+                mixStrength = clamp(mixStrength, 0.0, 1.0);
+
+                // Add some highlight to the peaks
+                float highlight = smoothstep(0.7, 1.0, mixStrength) * 0.5;
+                
+                vec3 finalColor = mix(uColorStart, uColorEnd, mixStrength);
+                finalColor += vec3(highlight); // peak foam/highlight
+                
+                gl_FragColor = vec4(finalColor, 1.0);
+            }
+        `;
+
+        const Fluid = () => {
+            const materialRef = useRef();
+            const lastScroll = useRef(window.scrollY);
+            const scrollVelocity = useRef(0);
+            
+            const uniforms = useMemo(() => ({
+                uTime: { value: 0 },
+                uWaveAmp: { value: 0.15 },
+                uColorStart: { value: new THREE.Color('#030914') }, // dark deep
+                uColorEnd: { value: new THREE.Color('#2563eb') },   // bright peak
+            }), []);
+
+            useFrame(({ clock }) => {
+                const scrollY = window.scrollY;
+                const delta = scrollY - lastScroll.current;
+                lastScroll.current = scrollY;
+                
+                // Smooth absolute velocity
+                scrollVelocity.current += (Math.abs(delta) - scrollVelocity.current) * 0.1;
+
+                if (materialRef.current) {
+                    materialRef.current.uniforms.uTime.value = clock.getElapsedTime();
+                    
+                    // Base amplitude 0.2, surges up to 4.5 based on fast scroll
+                    const targetAmp = 0.2 + Math.min(scrollVelocity.current * 0.06, 4.5);
+                    
+                    // Smooth lerp for amplitude to make it feel fluid and heavy
+                    materialRef.current.uniforms.uWaveAmp.value += (targetAmp - materialRef.current.uniforms.uWaveAmp.value) * 0.05;
+                }
+            });
+
+            return (
+                <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -2, 0]}>
+                    <planeGeometry args={[50, 50, 128, 128]} />
+                    <shaderMaterial 
+                        ref={materialRef}
+                        vertexShader={vertexShader}
+                        fragmentShader={fragmentShader}
+                        uniforms={uniforms}
+                        wireframe={false}
+                    />
+                </mesh>
+            );
+        };
+
+        const App = () => {
+            return (
+                <Canvas camera={{ position: [0, 2, 12], fov: 45 }}>
+                    <color attach="background" args={['#010204']} />
+                    <fog attach="fog" args={['#010204', 10, 40]} />
+                    <Fluid />
+                </Canvas>
+            );
+        };
+
+        const root = createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>

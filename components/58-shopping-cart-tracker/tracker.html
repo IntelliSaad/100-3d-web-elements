@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Physical Shopping Cart Tracker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { margin: 0; background: #0f172a; min-height: 100vh; font-family: 'Inter', sans-serif; color: white; }
+        
+        /* The WebGL Canvas sits perfectly in the bottom right corner */
+        #tracker-root {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            width: 250px;
+            height: 300px;
+            z-index: 50;
+            pointer-events: none; /* Let clicks pass through empty canvas areas */
+        }
+        
+        .tracker-hud {
+            position: absolute;
+            top: -2rem;
+            right: 0;
+            font-weight: bold;
+            font-size: 1.5rem;
+            color: #38bdf8;
+            text-shadow: 0 0 10px rgba(56,189,248,0.5);
+            pointer-events: auto;
+        }
+    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
+    <script type="importmap">
+    {
+        "imports": {
+            "react": "https://esm.sh/react@18.2.0",
+            "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+            "three": "https://esm.sh/three@0.154.0",
+            "@react-three/fiber": "https://esm.sh/@react-three/fiber@8.13.6?external=react,react-dom,three",
+            "@react-three/rapier": "https://esm.sh/@react-three/rapier@1.2.2?external=react,react-dom,three,@react-three/fiber"
+        }
+    }
+    </script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body>
+    <div id="app-root"></div>
+    <div id="tracker-root"></div>
+
+    <script type="text/babel" data-type="module">
+        import React, { useState, useEffect, Suspense, useRef } from 'react';
+        import { createRoot } from 'react-dom/client';
+        import { Canvas, useFrame } from '@react-three/fiber';
+        import { Physics, RigidBody, CuboidCollider } from '@react-three/rapier';
+        import * as THREE from 'three';
+
+        // --- GLOBAL STORE FOR CROSS-COMPONENT COMMS ---
+        // A simple tiny store to pass "add to cart" events to the WebGL canvas
+        const cartSubscribers = new Set();
+        const triggerAddToCart = (color) => {
+            cartSubscribers.forEach(cb => cb(color));
+        };
+
+        // --- WEBGL TRACKER (BOTTOM RIGHT) ---
+        const FloatingItem = ({ id, color, startPos }) => {
+            return (
+                <RigidBody position={startPos} colliders="cuboid" restitution={0.6} friction={0.5}>
+                    <mesh castShadow receiveShadow>
+                        <boxGeometry args={[0.5, 0.5, 0.5]} />
+                        <meshStandardMaterial color={color} roughness={0.1} metalness={0.8} />
+                    </mesh>
+                </RigidBody>
+            );
+        };
+
+        const WireframeBasket = () => {
+            return (
+                <group>
+                    {/* Visual Wireframe bounds (missing top) */}
+                    <mesh position={[0, -1.95, 0]}>
+                        <boxGeometry args={[4, 0.1, 4]} />
+                        <meshStandardMaterial color="#38bdf8" transparent opacity={0.2} wireframe />
+                    </mesh>
+                    <mesh position={[-1.95, -0.5, 0]}>
+                        <boxGeometry args={[0.1, 3, 4]} />
+                        <meshStandardMaterial color="#38bdf8" transparent opacity={0.2} wireframe />
+                    </mesh>
+                    <mesh position={[1.95, -0.5, 0]}>
+                        <boxGeometry args={[0.1, 3, 4]} />
+                        <meshStandardMaterial color="#38bdf8" transparent opacity={0.2} wireframe />
+                    </mesh>
+                    <mesh position={[0, -0.5, -1.95]}>
+                        <boxGeometry args={[4, 3, 0.1]} />
+                        <meshStandardMaterial color="#38bdf8" transparent opacity={0.2} wireframe />
+                    </mesh>
+                    <mesh position={[0, -0.5, 1.95]}>
+                        <boxGeometry args={[4, 3, 0.1]} />
+                        <meshStandardMaterial color="#38bdf8" transparent opacity={0.2} wireframe />
+                    </mesh>
+
+                    {/* Physics Bounds - Static Walls catching the items */}
+                    <RigidBody type="fixed" restitution={0.4} friction={0.5}>
+                        {/* Floor */}
+                        <CuboidCollider args={[2, 0.1, 2]} position={[0, -2, 0]} />
+                        {/* Walls */}
+                        <CuboidCollider args={[0.1, 1.5, 2]} position={[-2, -0.5, 0]} />
+                        <CuboidCollider args={[0.1, 1.5, 2]} position={[2, -0.5, 0]} />
+                        <CuboidCollider args={[2, 1.5, 0.1]} position={[0, -0.5, -2]} />
+                        <CuboidCollider args={[2, 1.5, 0.1]} position={[0, -0.5, 2]} />
+                    </RigidBody>
+                </group>
+            );
+        };
+
+        const PhysicsCart = () => {
+            const [items, setItems] = useState([]);
+
+            useEffect(() => {
+                const handleAdd = (color) => {
+                    const newItem = {
+                        id: Math.random() + '-' + Date.now(),
+                        color,
+                        // Spawn slightly randomized at the upper canvas bounds
+                        startPos: [(Math.random() - 0.5) * 2, 4, (Math.random() - 0.5) * 2] 
+                    };
+                    setItems(prev => [...prev, newItem]);
+                };
+                
+                cartSubscribers.add(handleAdd);
+                return () => cartSubscribers.delete(handleAdd);
+            }, []);
+
+            return (
+                <>
+                    <div className="tracker-hud">Cart: {items.length}</div>
+                    <Canvas 
+                        camera={{ position: [0, 2, 7], fov: 45 }}
+                        shadows
+                        // Prevent canvas from stealing mouse events not on objects
+                        style={{ pointerEvents: 'none' }} 
+                    >
+                        <ambientLight intensity={0.5} />
+                        <pointLight position={[5, 10, 5]} intensity={2} castShadow />
+                        <pointLight position={[-5, 5, -5]} intensity={1.5} color="#38bdf8" />
+                        
+                        {/* 
+                            Physics simulation 
+                            We sleep the rigid bodies once they rest to save battery/CPU
+                        */}
+                        <Suspense fallback={null}>
+                            <Physics gravity={[0, -9.81, 0]}>
+                                <WireframeBasket />
+                                {items.map(item => (
+                                    <FloatingItem key={item.id} {...item} />
+                                ))}
+                            </Physics>
+                        </Suspense>
+                    </Canvas>
+                </>
+            );
+        };
+
+        createRoot(document.getElementById('tracker-root')).render(<PhysicsCart />);
+
+        // --- MAIN HTML E-COMMERCE UI ---
+        const products = [
+            { id: 1, name: "Neon Smartwatch", price: "$299", color: "#f43f5e" }, // Rose
+            { id: 2, name: "Quantum Earbuds", price: "$149", color: "#8b5cf6" }, // Violet
+            { id: 3, name: "Spatial Keyboard", price: "$199", color: "#10b981" }, // Emerald
+            { id: 4, name: "OLED Monitor", price: "$899", color: "#3b82f6" }  // Blue
+        ];
+
+        const Store = () => {
+            return (
+                <div className="min-h-screen p-16">
+                    <h1 className="text-5xl font-black mb-4">WristHub / Tech</h1>
+                    <p className="text-xl text-slate-400 mb-16 max-w-2xl">Click "Add to Cart" and watch the physical object drop into your spatial tracking basket in the bottom right corner.</p>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 max-w-7xl">
+                        {products.map(product => (
+                            <div key={product.id} className="bg-slate-800/50 border border-slate-700 p-8 rounded-3xl flex flex-col items-center shadow-xl transition-transform hover:-translate-y-2">
+                                {/* Visual product proxy */}
+                                <div 
+                                    className="w-32 h-32 rounded-xl mb-8 shadow-2xl"
+                                    style={{ backgroundColor: product.color, boxShadow: `0 20px 40px -10px ${product.color}` }}
+                                ></div>
+                                
+                                <h3 className="text-xl font-bold mb-2">{product.name}</h3>
+                                <p className="text-slate-400 mb-8">{product.price}</p>
+                                
+                                <button
+                                    onClick={() => triggerAddToCart(product.color)}
+                                    className="w-full py-4 rounded-xl font-bold bg-white text-slate-900 shadow-[0_5px_15px_rgba(255,255,255,0.2)] hover:bg-slate-200 transition-colors active:scale-95"
+                                >
+                                    Add to Cart
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            );
+        };
+
+        createRoot(document.getElementById('app-root')).render(<Store />);
+    </script>
+</body>
+</html>

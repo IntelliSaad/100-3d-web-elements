@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Spatial 3D Pricing Table</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { margin: 0; background: #050508; min-height: 100vh; overflow: hidden; font-family: 'Inter', sans-serif; color: white; display: flex; align-items: center; justify-content: center; }
+        #root { width: 100%; height: 100vh; display: flex; align-items: center; justify-content: center; }
+        
+        .preserve-3d { transform-style: preserve-3d; }
+        
+        .glass-card {
+            background: linear-gradient(145deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.01) 100%);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(255,255,255,0.05);
+            box-shadow: 0 40px 100px -20px rgba(0,0,0,0.8), inset 0 1px 1px rgba(255,255,255,0.1);
+        }
+        
+        .text-gradient {
+            background: linear-gradient(to right, #fff, #a5a5a5);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .bg-gradient-pro {
+            background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+        }
+    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <script type="importmap">
+    {
+        "imports": {
+            "react": "https://esm.sh/react@18.2.0",
+            "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+            "framer-motion": "https://esm.sh/framer-motion@10.16.4?external=react,react-dom"
+        }
+    }
+    </script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body>
+    <div id="root"></div>
+    <script type="text/babel" data-type="module">
+        import React, { useState } from 'react';
+        import { createRoot } from 'react-dom/client';
+        import { motion } from 'framer-motion';
+
+        const plans = [
+            { id: 'basic', name: 'Basic', price: '$0', desc: 'For individuals', features: ['1 Workspace', '5GB Storage', 'Community Support'] },
+            { id: 'pro', name: 'Pro', price: '$29', desc: 'For professionals', features: ['Unlimited Workspaces', '500GB Storage', 'Priority Support', 'Advanced Analytics'] },
+            { id: 'enterprise', name: 'Enterprise', price: '$99', desc: 'For large teams', features: ['Custom Limits', 'Unlimited Storage', '24/7 Dedicated Support', 'Custom Branding', 'SSO Intgeration'] }
+        ];
+
+        const App = () => {
+            const [hoveredId, setHoveredId] = useState(null);
+
+            return (
+                <div style={{ perspective: 1800 }} className="w-full h-full flex flex-col items-center justify-center relative preserve-3d">
+                    {/* Background glows */}
+                    <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none flex justify-center items-center">
+                        <div className="w-[800px] h-[800px] bg-indigo-600/10 rounded-full blur-[120px]" />
+                    </div>
+
+                    <div className="z-10 text-center mb-16 transform translate-z-[-200px]">
+                        <h1 className="text-5xl font-black mb-4 tracking-tight text-gradient shadow-black">Unlock Your Potential</h1>
+                        <p className="text-white/40 font-medium">Choose the plan that's right for you. Change anytime.</p>
+                    </div>
+
+                    <div className="flex gap-8 items-center justify-center preserve-3d z-10 w-full max-w-6xl px-12">
+                        {plans.map((plan) => {
+                            const isHovered = hoveredId === plan.id;
+                            const isOtherHovered = hoveredId !== null && hoveredId !== plan.id;
+                            const isPro = plan.id === 'pro';
+
+                            return (
+                                <motion.div
+                                    key={plan.id}
+                                    className={`relative glass-card rounded-[32px] p-8 flex flex-col w-full max-w-sm h-[520px] preserve-3d cursor-pointer ${isPro ? 'border-indigo-500/30 ring-1 ring-indigo-500/20' : ''}`}
+                                    onClick={() => alert(`Selected ${plan.name} Plan!`)}
+                                    onHoverStart={() => setHoveredId(plan.id)}
+                                    onHoverEnd={() => setHoveredId(null)}
+                                    initial={{ z: 0, rotateX: 15, opacity: 1, filter: 'blur(0px) brightness(1)' }}
+                                    animate={{ 
+                                        z: isHovered ? 50 : isOtherHovered ? -50 : 0,
+                                        rotateX: isHovered ? 0 : 15,
+                                        opacity: isOtherHovered ? 0.4 : 1,
+                                        filter: isOtherHovered ? 'blur(8px) brightness(0.6)' : 'blur(0px) brightness(1)',
+                                        scale: isHovered ? 1.05 : 1,
+                                        y: isHovered ? -15 : 0
+                                    }}
+                                    transition={{ duration: 0.6, type: "spring", bounce: 0.2 }}
+                                    style={{ transformStyle: "preserve-3d" }}
+                                >
+                                    {isPro && (
+                                        <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-gradient-pro text-white text-xs font-bold px-4 py-1.5 rounded-full tracking-[0.2em] uppercase shadow-[0_10px_20px_rgba(99,102,241,0.4)] z-20 pointer-events-none">
+                                            Most Popular
+                                        </div>
+                                    )}
+                                    
+                                    {/* Inner 3D Content Container */}
+                                    <motion.div 
+                                        className="preserve-3d flex-grow flex flex-col pointer-events-none"
+                                        animate={{ z: isHovered ? 30 : 0 }}
+                                        transition={{ duration: 0.4 }}
+                                    >
+                                        <div className="mb-8">
+                                            <h3 className="text-xl font-bold text-white/90 mb-1">{plan.name}</h3>
+                                            <p className="text-sm text-white/40">{plan.desc}</p>
+                                        </div>
+
+                                        <div className="flex items-baseline mb-8">
+                                            <span className="text-5xl font-black text-white">{plan.price}</span>
+                                            <span className="text-white/40 ml-2 font-medium">/mo</span>
+                                        </div>
+                                        
+                                        <ul className="space-y-4 mb-8 flex-grow">
+                                            {plan.features.map((feature, idx) => (
+                                                <li key={idx} className="flex items-center text-sm font-medium text-white/70">
+                                                    <div className={`w-5 h-5 rounded-full flex items-center justify-center mr-3 ${isPro ? 'bg-indigo-500/20 text-indigo-400' : 'bg-white/5 text-white/40'}`}>
+                                                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
+                                                    </div>
+                                                    {feature}
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </motion.div>
+
+                                    {/* 3D Pop-out Button container inside the clickable card */}
+                                    <motion.div 
+                                        className={`mt-auto w-full py-4 rounded-2xl font-bold tracking-widest uppercase text-center text-sm shadow-xl transition-colors preserve-3d pointer-events-none relative z-50 ${isPro ? 'bg-white text-indigo-900' : 'bg-white/10 text-white'}`}
+                                        animate={{ 
+                                            z: isHovered ? 60 : 0, 
+                                            scale: isHovered ? 1.05 : 1,
+                                            boxShadow: isHovered ? (isPro ? '0 20px 40px -10px rgba(255,255,255,0.3)' : '0 20px 40px -10px rgba(0,0,0,0.5)') : '0 0 0 transparent'
+                                        }}
+                                        transition={{ duration: 0.5, type: "spring", bounce: 0.4 }}
+                                    >
+                                        Select Plan
+                                    </motion.div>
+                                </motion.div>
+                            );
+                        })}
+                    </div>
+                </div>
+            );
+        };
+
+        createRoot(document.getElementById('root')).render(<App />);
+    </script>
+</body>
+</html>
